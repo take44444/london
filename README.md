@@ -26,6 +26,14 @@ Open http://localhost:5173. To rebuild after editing `london/src/`, run `npm run
 
 The surrounding city now uses real OpenStreetMap outlines, courtyard holes, curved roads and riverbanks over a region about four kilometres across. Recorded building heights and levels are used where available; other heights and some roof forms are estimates. The Palace, bridge and London Eye remain architectural recreations; the Abbey is a photographic scan. The façade textures are generated architectural interpretations, not photographs of the corresponding buildings. This is not a complete geographical model of London, and the current scene does not meet a claim of being indistinguishable from real photography.
 
+## Rendering
+
+The color scene renders into a linear HDR buffer. Contact shading uses the same depth texture, preserving cutout leaves and avoiding an additional full-city normal pass. A single ACES display transform and SMAA edge smoothing finish the image. Render targets resize with the viewport.
+
+The visible sky uses a locally hosted 8K photograph on desktop and 4K on smaller displays. It is drawn directly on a sky dome so the browser does not allocate six additional high-resolution cube faces. The separate HDR environment still supplies lighting and material reflections.
+
+The river uses a water-air Fresnel reflectance of approximately 0.02, filtered linear reflections, several scales of wind ripples and five boat-following wake sources. Reduced-motion preferences freeze the environmental motion.
+
 ## Bundled map data
 
 `dist/assets/london-map.json` is an adapted extract of [OpenStreetMap](https://www.openstreetmap.org/copyright) data, supplied by [Geofabrik](https://download.geofabrik.de/europe/united-kingdom/england/greater-london.html), under the [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Copyright OpenStreetMap contributors. Coordinates are projected into local metres around Elizabeth Tower, with source attribution and projection parameters retained in the JSON. The app makes no live map requests.
@@ -41,7 +49,7 @@ python3 scripts/prepare-map.py dist/assets/london-map.json
 
 - [Clock Tower (Big Ben)](https://sketchfab.com/3d-models/9a1c691fac774bcca4e2ba565c4c9d9b) by ManySince910, CC BY 4.0. Scaled and material settings adjusted.
 - [Westminster Abbey, London, UK](https://sketchfab.com/3d-models/33175190a3ab441e908bd18796c3803d) by Brian Trepanier, CC BY 4.0. Geometry simplified, textures resized and compressed. Both models retrieved from the public Allen Institute Objaverse dataset.
-- [Sandstone Blocks 05](https://polyhaven.com/a/sandstone_blocks_05), [Kloofendal 48d Partly Cloudy Pure Sky](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky), and [Tree Small 02](https://polyhaven.com/a/tree_small_02), Poly Haven, CC0. The tree uses the asset's transparent preview image as a distant impostor.
+- [Sandstone Blocks 05](https://polyhaven.com/a/sandstone_blocks_05), [Kloofendal 48d Partly Cloudy Pure Sky](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky), and [Tree Small 02](https://polyhaven.com/a/tree_small_02), Poly Haven, CC0. The tree uses the asset's transparent preview image as a distant impostor. The visible sky uses the Kloofendal asset’s 8K tonemapped photograph, converted to WebP at 8K and 4K; the original 2K HDR remains the lighting source.
 - [Brick Wall 11](https://polyhaven.com/a/brick_wall_11), [Grey Plaster 03](https://polyhaven.com/a/grey_plaster_03), [Asphalt 02](https://polyhaven.com/a/asphalt_02), [Roof Slates 02](https://polyhaven.com/a/roof_slates_02), and [Grass Ground](https://polyhaven.com/a/grass_ground), Poly Haven, CC0.
 - Three architectural façade textures generated with the built-in imagegen tool. Originals, browser filenames and complete prompts are documented in [art-assets/GENERATION.md](art-assets/GENERATION.md).
 - Three.js and its water normal texture: MIT license.

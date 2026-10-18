@@ -1,0 +1,3 @@
+# Bundles contain third-party GLSL strings; review formatting in the authored source.
+dist/scene.js linguist-generated -whitespace
+dist/scene.js.map linguist-generated -whitespace

@@ -26,7 +26,14 @@ try {
   assert.ok((await state()).map.recordedHeights>4000,'Recorded OSM heights are used');
   assert.ok((await state()).map.trees>5000,'Mapped tree locations are present');
   assert.equal((await state()).map.source,'OpenStreetMap contributors');
-  assert.ok((await state()).triangles>0,'The scene rendered real geometry');
+  assert.ok((await state()).triangles>100000,'The city geometry renders in addition to fullscreen effects');
+  assert.equal((await state()).rendering.antialias,'SMAA');
+  assert.equal((await state()).rendering.contactShading,true);
+  assert.equal((await state()).rendering.skyResolution,8192);
+  await page.setViewportSize({width:1100,height:700});
+  await page.waitForFunction(()=>window.londonWorld.state.rendering.width===1100&&window.londonWorld.state.rendering.height===700);
+  await page.setViewportSize({width:1280,height:800});
+  await page.waitForFunction(()=>window.londonWorld.state.rendering.width===1280&&window.londonWorld.state.rendering.height===800);
   await page.screenshot({path:new URL('../test-results/westminster.png',import.meta.url).pathname,timeout:120000});
   let before=await state();
   await page.mouse.move(830,360);await page.mouse.down();await page.mouse.move(960,395);await page.mouse.up();
@@ -59,6 +66,8 @@ try {
   const phone=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   phone.setDefaultTimeout(60000);phone.on('pageerror',e=>errors.push(e.message));
   await phone.goto(origin);await phone.waitForFunction(()=>window.londonWorld?.state.ready,null,{timeout:120000});await phone.locator('#loading').waitFor({state:'hidden'});
+  assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.skyResolution),4096);
+  assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.width),390);
   for(const selector of ['.location-card','.view-nav','.light-controls','.topbar']){
     const b=await phone.locator(selector).boundingBox();assert.ok(b.x>=0&&b.x+b.width<=391,`${selector} fits the phone viewport`);
   }

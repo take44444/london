@@ -294,7 +294,7 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
   const eye = new THREE.Group();eye.position.set(mapData?220.19:138,mapData?69:72,mapData?-345.06:-243);eye.rotation.y=mapData?Math.PI/2-.13:-.12;if(mapData)eye.scale.setScalar(1.055);scene.add(eye);
   const rotating = new THREE.Group();eye.add(rotating);
   const wheelMaterial=material('#f4f0df',{metalness:.4,roughness:.36});
-  const capsuleMat=new THREE.MeshPhysicalMaterial({color:'#afc9c6',metalness:.22,roughness:.12,transparent:true,opacity:.68,clearcoat:1});
+  const capsuleMat=new THREE.MeshPhysicalMaterial({color:'#afc9c6',metalness:.22,roughness:.12,transparent:true,opacity:.68,depthWrite:false,clearcoat:1});
   const rim=new THREE.Mesh(new THREE.TorusGeometry(60, .58,8,160),wheelMaterial);rotating.add(rim);
   for(const dz of [-.8,.8]) {
     const innerRim=new THREE.Mesh(new THREE.TorusGeometry(58.5,.19,6,128),wheelMaterial);innerRim.position.z=dz;rotating.add(innerRim);
@@ -482,7 +482,7 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
     }
     group.position.set(-42+i*26,0,-510+i*206);if(i%2)group.rotation.y=Math.PI;
     mergeGroup(group);scene.add(group);
-    boats.push({group,dir:i%2?-1:1,speed:2.1+i*.23,phase:i,u:.3+i*.1});
+    boats.push({group,dir:i%2?-1:1,speed:2.1+i*.23,phase:i,u:.3+i*.1,length:len});
   }
   // Small flock circling the river.
   const birds=new THREE.Group();scene.add(birds);
@@ -501,6 +501,7 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
   }
   return {
     mats,glowMat,instanceCount,bakedMaterials,mapContext,
+    updateWakes(target){for(let i=0;i<Math.min(target.length,boats.length);i++){const b=boats[i];target[i].set(b.group.position.x,b.group.position.z,b.group.rotation.y,b.length);}},
     update(time,dt) {
       const angle=time*.005;
       rotating.rotation.z=angle;

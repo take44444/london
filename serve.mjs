@@ -2,7 +2,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 const root = path.resolve(import.meta.dirname, 'dist');
-const types = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.jpg':'image/jpeg','.png':'image/png','.svg':'image/svg+xml','.hdr':'application/octet-stream','.woff2':'font/woff2'};
+const types = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.jpg':'image/jpeg','.png':'image/png','.webp':'image/webp','.svg':'image/svg+xml','.hdr':'application/octet-stream','.woff2':'font/woff2'};
 http.createServer(async (req,res)=>{
   try {
     const pathname = decodeURIComponent(new URL(req.url,'http://localhost').pathname);

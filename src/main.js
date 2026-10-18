@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { Water } from 'three/addons/objects/Water.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { buildLondon } from './world.js';
+import { createRendering } from './rendering.js';
+import { createRiver } from './river.js';
 
 const canvas=document.querySelector('#world');
 const scene=new THREE.Scene();
@@ -83,14 +84,12 @@ dracoLoader.dispose();
 const treePicture=await loadTexture('tree-billboard.png',true);
 models.treeImpostor={material:new THREE.MeshStandardMaterial({map:treePicture,alphaTest:.4,side:THREE.DoubleSide,roughness:1,color:'#b4b99b'}),aspect:326/480};
 const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,...Object.fromEntries(surfaceEntries)},models,mapData);
-const water=new Water(new THREE.PlaneGeometry(mapData?6000:198,mapData?6000:2800),{
-  textureWidth:mobile?256:512,textureHeight:mobile?256:512,
-  waterNormals,sunDirection:sun.position.clone().normalize(),sunColor:'#ffe4b0',waterColor:'#555e43',distortionScale:1.8,fog:true,
-});
-water.rotation.x=-Math.PI/2;water.position.set(8,.05,0);scene.add(water);
-water.material.uniforms.size.value=5.5;
+const river=createRiver(waterNormals,sun.position,renderer,!!mapData,mobile);
+const water=river.mesh;scene.add(water);
 const pmrem=new THREE.PMREMGenerator(renderer);
 let environment;
+let skyResolution=0;
+let skyDome=null;
 try {
   const hdr=await new RGBELoader().loadAsync('./assets/sky.hdr');
   hdr.mapping=THREE.EquirectangularReflectionMapping;
@@ -100,6 +99,23 @@ try {
   scene.backgroundIntensity=.9;scene.environmentIntensity=.55;
 }catch{console.warn('Using procedural sky lighting.');}
 pmrem.dispose();
+try{
+  const skySize=mobile||renderer.capabilities.maxTextureSize<8192?4096:8192;
+  const sky=await loadTexture(`sky-${skySize===8192?'8k':'4k'}.webp`,true);
+  if(sky){
+    const oldBackground=scene.background;
+    const geometry=new THREE.SphereGeometry(6000,64,32),uv=geometry.attributes.uv;
+    for(let i=0;i<uv.count;i++)uv.setX(i,1-uv.getX(i));
+    sky.wrapS=THREE.RepeatWrapping;sky.wrapT=THREE.ClampToEdgeWrapping;
+    skyDome=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({map:sky,side:THREE.BackSide,depthWrite:false,depthTest:false,fog:false}));
+    skyDome.rotation.y=.45;skyDome.renderOrder=-10000;skyDome.frustumCulled=false;
+    skyDome.onBeforeRender=(renderer,scene,camera)=>{skyDome.position.copy(camera.position);skyDome.updateMatrixWorld();};
+    scene.add(skyDome);scene.background=null;skyResolution=sky.image.width;
+    if(oldBackground?.isTexture&&oldBackground!==environment)oldBackground.dispose();
+  }
+}catch{console.warn('Using the HDR sky background.');}
+const rendering=createRendering(renderer,scene,camera,mobile);
+await rendering.ready;
 
 function makeTreeImpostor(source){
   const tree=source.clone(true),s=new THREE.Scene();
@@ -171,9 +187,9 @@ document.querySelector('#fullscreen').addEventListener('click',async()=>{
 document.addEventListener('fullscreenchange',()=>{document.querySelector('#fullscreen').setAttribute('aria-label',document.fullscreenElement?'Exit fullscreen':'Enter fullscreen');});
 
 const lighting={
-  day:{sun:'#fff1d3',sunPower:2.4,hemiPower:.95,fillPower:.2,sky:.8,env:.45,exposure:1,fog:'#aebdbd',density:.0012,water:'#3b534c',warm:.015,glow:.15,sunPos:[-180,360,210]},
-  golden:{sun:'#ffcf9a',sunPower:2.7,hemiPower:.75,fillPower:.22,sky:.65,env:.4,exposure:1.05,fog:'#a9adb1',density:.00085,water:'#464f3d',warm:.08,glow:.5,sunPos:[-260,155,235]},
-  night:{sun:'#a0b4e8',sunPower:.15,hemiPower:.36,fillPower:.32,sky:.07,env:.18,exposure:1.3,fog:'#1c2c46',density:.0009,water:'#1d3540',warm:1.5,glow:3,sunPos:[-250,250,180]},
+  day:{sun:'#fff1d3',sunPower:2.4,hemiPower:.95,fillPower:.2,sky:skyResolution?2:.8,env:.45,exposure:1,fog:'#aebdbd',density:.0012,water:'#636553',warm:.015,glow:.15,sunPos:[-180,360,210]},
+  golden:{sun:'#ffcf9a',sunPower:2.7,hemiPower:.75,fillPower:.22,sky:skyResolution?1.6:.65,env:.4,exposure:1.05,fog:'#a9adb1',density:.00085,water:'#68604b',warm:.08,glow:.5,sunPos:[-260,155,235]},
+  night:{sun:'#a0b4e8',sunPower:.15,hemiPower:.36,fillPower:.32,sky:skyResolution?.16:.07,env:.18,exposure:1.3,fog:'#1c2c46',density:.0009,water:'#243237',warm:1.5,glow:3,sunPos:[-250,250,180]},
 };
 function setLight(mode,instant=false){
   const l=lighting[mode];if(!l)return;lightMode=mode;renderNeeded=true;
@@ -230,8 +246,10 @@ function animate(){
     sun.position.lerpVectors(f.sunPos,new THREE.Vector3(...l.sunPos),e);
     hemi.intensity=lerp(f.hemiPower,l.hemiPower);fill.intensity=lerp(f.fillPower,l.fillPower);
     scene.backgroundIntensity=lerp(f.sky,l.sky);scene.environmentIntensity=lerp(f.env,l.env);renderer.toneMappingExposure=lerp(f.exposure,l.exposure);
+    if(skyDome)skyDome.material.color.setScalar(scene.backgroundIntensity);
     scene.fog.color.copy(f.fog).lerp(new THREE.Color(l.fog),e);scene.fog.density=lerp(f.density,l.density);
     water.material.uniforms.waterColor.value.copy(f.water).lerp(new THREE.Color(l.water),e);
+    river.setIllumination(THREE.MathUtils.lerp(.1,.9,Math.min(hemi.intensity/.95,1)));
     water.material.uniforms.sunColor.value.copy(sun.color).multiplyScalar(Math.min(sun.intensity/2.7,1));water.material.uniforms.sunDirection.value.copy(sun.position).normalize();
     london.mats.warmglass.emissiveIntensity=lerp(f.warm,l.warm);london.glowMat.emissiveIntensity=lerp(f.glow,l.glow);
     if(models.treeImpostor)models.treeImpostor.material.color.setScalar(THREE.MathUtils.lerp(1,.22,Math.min(l.warm/1.5,1)));
@@ -245,9 +263,10 @@ function animate(){
   if(camera.position.y<4)camera.position.y=4;
   if(reducedMotion&&!renderNeeded&&!flight&&!lightFlight&&!controls.autoRotate)return;
   london.update(reducedMotion?0:elapsed,reducedMotion?0:dt);
-  if(!reducedMotion)water.material.uniforms.time.value+=dt*.32;
+  london.updateWakes(river.wakes);
+  if(!reducedMotion)water.material.uniforms.time.value+=dt;
   if(!reducedMotion&&elapsed-lastShadowUpdate>.12){renderer.shadowMap.needsUpdate=true;lastShadowUpdate=elapsed;}
-  renderer.render(scene,camera);
+  rendering.render(dt);
   renderNeeded=false;
   {
     frame++;
@@ -263,7 +282,7 @@ function animate(){
     document.querySelector('#compass svg').style.transform=`rotate(${-THREE.MathUtils.radToDeg(controls.getAzimuthalAngle())}deg)`;
   }
 }
-window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderNeeded=true;});
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);rendering.resize(innerWidth,innerHeight);renderNeeded=true;});
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('Graphics paused. Restoring the world…');});
 canvas.addEventListener('webglcontextrestored',()=>location.reload());
 setView('westminster',true);
@@ -273,5 +292,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,source:m.source.name}:null,abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,source:m.source.name}:null,abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };
