@@ -7,6 +7,7 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { buildLondon } from './world.js';
 import { createRendering } from './rendering.js';
 import { createRiver } from './river.js';
+import {createVictoriaOcclusion} from './victoria.mjs';
 
 const canvas=document.querySelector('#world');
 const scene=new THREE.Scene();
@@ -19,6 +20,7 @@ const views={
   eye:{position:[-110,95,-220],target:[220.19,65,-345.06],title:'A turn above the city.',description:'Follow the quiet rhythm of the London Eye. The river keeps moving. So does the view.',subtitle:'THE LONDON EYE · SOUTH BANK'},
   river:{position:[90,29,380],target:[80,26,-180],title:'Life along the Thames.',description:'Drift down to the water. Watch the boats pass and the city find its own reflection.',subtitle:'RIVER THAMES · WESTMINSTER BRIDGE'},
   abbey:{position:[-200,110,-155],target:[-385,26,100],title:'Written in stone.',description:'Explore a textured 3D scan of Westminster Abbey. Centuries of intricate stonework, from a new angle.',subtitle:'WESTMINSTER ABBEY · 3D SCAN'},
+  victoria:{position:[-270,50,350],target:[-173.75,54,213.23],title:'Stone, rising skyward.',description:'Look up through tiers of Gothic windows, carved stone and the lanterns of Victoria Tower.',subtitle:'VICTORIA TOWER · SOVEREIGN’S ENTRANCE'},
 };
 let renderer;
 try {
@@ -69,9 +71,10 @@ const surfaceEntries=await Promise.all(['brick','plaster','asphalt','roof'].map(
   const [color,normal,roughness]=await Promise.all([loadTexture(`${name}-color.jpg`,true),loadTexture(`${name}-normal.jpg`),loadTexture(`${name}-roughness.jpg`)]);
   return [name,{color,normal,roughness}];
 }));
-const [facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,mapData]=await Promise.all([
+const [facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,mapData,unionFlag]=await Promise.all([
   loadTexture('portland-facade-v1.jpg',true),loadTexture('stock-brick-facade-v1.jpg',true),loadTexture('westminster-facade-v1.jpg',true),loadTexture('grass-color.jpg',true),loadTexture('grass-normal.jpg'),loadTexture('grass-roughness.jpg'),
   fetch('./assets/london-map.json').then(r=>{if(!r.ok)throw Error('Map unavailable');return r.json();}).catch(error=>{console.warn(error.message);return null;}),
+  loadTexture('union-flag.svg',true),
 ]);
 const dracoLoader=new DRACOLoader(manager).setDecoderPath('./assets/draco/');
 const modelLoader=new GLTFLoader(manager);modelLoader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(dracoLoader);
@@ -83,7 +86,7 @@ const models=Object.fromEntries(await Promise.all(Object.entries(modelNames).map
 dracoLoader.dispose();
 const treePicture=await loadTexture('tree-billboard.png',true);
 models.treeImpostor={material:new THREE.MeshStandardMaterial({map:treePicture,alphaTest:.4,side:THREE.DoubleSide,roughness:1,color:'#b4b99b'}),aspect:326/480};
-const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,...Object.fromEntries(surfaceEntries)},models,mapData);
+const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,unionFlag,...Object.fromEntries(surfaceEntries)},models,mapData);
 const river=createRiver(waterNormals,sun.position,renderer,!!mapData,mobile);
 const water=river.mesh;scene.add(water);
 const pmrem=new THREE.PMREMGenerator(renderer);
@@ -138,6 +141,7 @@ const labels=[
   {id:'eye',name:'LONDON EYE',position:new THREE.Vector3(220.19,148,-345.06)},
   {id:'westminster',name:'PALACE OF WESTMINSTER',position:new THREE.Vector3(-137,47,100)},
   {id:'abbey',name:'WESTMINSTER ABBEY',position:new THREE.Vector3(-385,68,100)},
+  {id:'victoria',name:'VICTORIA TOWER',position:new THREE.Vector3(-173.75,109,213.23)},
 ];
 for(const label of labels) {
   const button=document.createElement('button');button.className='landmark';button.textContent=label.name;button.tabIndex=-1;
@@ -159,9 +163,12 @@ function setView(id,instant=false) {
   document.querySelector('#location-title').textContent=view.title;
   document.querySelector('#location-description').textContent=view.description;
   document.querySelector('#location-subtitle').textContent=view.subtitle;
-  document.querySelector('#location-index').textContent=`0${Object.keys(views).indexOf(id)+1} / 05`;
+  const ids=Object.keys(views);
+  document.querySelector('#location-index').textContent=`${String(ids.indexOf(id)+1).padStart(2,'0')} / ${String(ids.length).padStart(2,'0')}`;
+  document.querySelector(`.view-nav [data-view="${id}"]`)?.scrollIntoView({block:'nearest',inline:'nearest',behavior:reducedMotion?'instant':'smooth'});
   const endPos=new THREE.Vector3(...view.position);
   if(innerWidth<700&&id==='westminster'){endPos.set(260,180,560);}
+  if(innerWidth<700&&id==='victoria'){endPos.set(-305,85,405);}
   if(instant||reducedMotion){camera.position.copy(endPos);controls.target.fromArray(view.target);controls.update();flight=null;}
   else flight={start:performance.now(),from:camera.position.clone(),to:endPos,fromTarget:controls.target.clone(),toTarget:new THREE.Vector3(...view.target)};
 }
@@ -229,6 +236,7 @@ let toastTimer;
 function toast(message){const el=document.querySelector('#toast');el.textContent=message;el.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('visible'),3000);}
 
 const temp=new THREE.Vector3(),clock=new THREE.Clock();
+const victoriaOccludes=createVictoriaOcclusion(london.victoriaInfo);
 let elapsed=0,frame=0,lastShadowUpdate=0;
 function animate(){
   requestAnimationFrame(animate);
@@ -275,7 +283,7 @@ function animate(){
       const x=(temp.x*.5+.5)*innerWidth,y=(-temp.y*.5+.5)*innerHeight;
       const nearIntro=x<340&&y<345;
       const nearCard=x<395&&y>innerHeight-380;
-      const visible=temp.z<1&&temp.z>-1&&x>20&&x<innerWidth-75&&y>160&&y<innerHeight-100&&!nearIntro&&!nearCard;
+      const visible=temp.z<1&&temp.z>-1&&x>20&&x<innerWidth-75&&y>160&&y<innerHeight-100&&!nearIntro&&!nearCard&&!(label.id!=='victoria'&&victoriaOccludes(camera.position,label.position));
       label.element.style.opacity=visible?'1':'0';label.element.style.pointerEvents=visible?'auto':'none';
       label.element.style.left=`${x}px`;label.element.style.top=`${y}px`;
     }
@@ -292,5 +300,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,palace:london.palaceInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,palace:london.palaceInfo,victoria:london.victoriaInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };

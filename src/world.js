@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildMapCity } from './map-city.js';
 import { buildPalace } from './palace.mjs';
+import {buildVictoriaTower,victoriaPose} from './victoria.mjs';
 
 // All repeated architecture is instanced. Dimensions are in metres.
 export function buildLondon(scene, textures, models={}, mapData=null) {
@@ -184,7 +185,12 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
   localTransform=null;
   if(models.bigben)addModel(models.bigben,-121,5,-51,96);
   else gothicTower(-121,-51,14,85,true);
-  gothicTower(mapData?-173.75:-139,mapData?213.23:223,21,92,false);
+  const victoriaLocation=victoriaPose(mapData?.buildings.find(b=>b.t.name==='Victoria Tower'));
+  const victoriaTransform=new THREE.Matrix4().makeRotationY(victoriaLocation.rotation).setPosition(victoriaLocation.position[0],0,victoriaLocation.position[1]);
+  localTransform=victoriaTransform;
+  const victoria=buildVictoriaTower({instance,box,rod,mats},textures);
+  localTransform=null;
+  victoria.flag.applyMatrix4(victoriaTransform);scene.add(victoria.flag);
   // Parliament Square and Westminster Abbey beyond the Palace.
   if(!mapData)box(-246,5,-57,58,.2,67,mats.grass);
   if(models.abbey)addModel(models.abbey,-385,4,100,56,true);
@@ -457,8 +463,10 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
   }
   return {
     mats,glowMat,instanceCount,bakedMaterials,mapContext,palaceInfo,
+    get victoriaInfo(){return {...victoria.info,...victoriaLocation};},
     updateWakes(target){for(let i=0;i<Math.min(target.length,boats.length);i++){const b=boats[i];target[i].set(b.group.position.x,b.group.position.z,b.group.rotation.y,b.length);}},
     update(time,dt) {
+      victoria.update(time);
       const angle=time*.005;
       rotating.rotation.z=angle;
       for(const {pod,angle:a} of capsules)pod.position.set(Math.cos(a+angle)*62.3,Math.sin(a+angle)*62.3,0);

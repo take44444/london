@@ -22,6 +22,9 @@ try {
   const state=()=>page.evaluate(()=>window.londonWorld.state);
   assert.equal((await state()).models.bigben,true);
   assert.equal((await state()).models.abbey,true);
+  assert.equal((await state()).victoria.cornerLanterns,4);
+  assert.deepEqual((await state()).victoria.position,[-173.75,213.23]);
+  assert.equal((await state()).victoria.flagTime,0,'Reduced motion keeps the flag still');
   const palace=(await state()).palace;
   assert.ok(palace.archedOpenings>200,'The Palace has physical arched openings');
   assert.ok(palace.dormers>30&&palace.roofs>=7,'The Palace roofline includes dormers and intersecting roof pitches');
@@ -56,10 +59,14 @@ try {
   before=await state();await page.mouse.wheel(0,-200);await page.waitForTimeout(500);assert.ok(distance(await state())<distance(before),'Wheel zooms closer');
   before=await state();await page.locator('#zoom-in').click();assert.ok(distance(await state())<distance(before),'Zoom button works');
   before=await state();await page.keyboard.press('+');assert.ok(distance(await state())<distance(before),'Keyboard zoom works');
-  for(const id of ['bigben','eye','abbey','river']){
+  for(const id of ['bigben','eye','abbey','river','victoria']){
     await page.locator(`[data-view="${id}"]`).click();assert.equal((await state()).view,id);
     assert.equal(await page.locator(`[data-view="${id}"]`).getAttribute('aria-pressed'),'true');
     if(id==='abbey')await page.screenshot({path:new URL('../test-results/abbey.png',import.meta.url).pathname,timeout:120000});
+    if(id==='victoria'){
+      assert.equal(await page.locator('#location-index').textContent(),'06 / 06');
+      await page.screenshot({path:new URL('../test-results/victoria.png',import.meta.url).pathname,timeout:120000});
+    }
     console.log('View passed:',id);
   }
   await page.locator('[data-light="night"]').click();assert.equal((await state()).lighting,'night');assert.ok(await page.locator('body').evaluate(b=>b.classList.contains('night')));
@@ -70,7 +77,7 @@ try {
   await page.locator('#auto-orbit').click();assert.equal((await state()).autoOrbit,true);await page.locator('#auto-orbit').click();assert.equal((await state()).autoOrbit,false);
   await page.locator('#reset').click();assert.equal((await state()).view,'westminster');
   assert.deepEqual(errors,[],'No browser or WebGL errors');
-  console.log('Desktop: rendered assets, orbit, pan, wheel, buttons, keyboard, 5 views, lighting, sound and help passed.');
+  console.log('Desktop: rendered assets, orbit, pan, wheel, buttons, keyboard, 6 views, lighting, sound and help passed.');
   await page.close();
   const phone=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true,reducedMotion:'reduce'});
   phone.setDefaultTimeout(60000);phone.on('pageerror',e=>errors.push(e.message));
@@ -88,5 +95,17 @@ try {
   await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   await phone.waitForTimeout(300);assert.notDeepEqual(await phone.evaluate(()=>window.londonWorld.state.camera),phoneBefore,'Touch dragging orbits');
   await phone.screenshot({path:new URL('../test-results/mobile.png',import.meta.url).pathname,timeout:120000});
+  await phone.locator('[data-view="victoria"]').tap();
+  assert.equal(await phone.evaluate(()=>window.londonWorld.state.view),'victoria');
+  const selected=await phone.locator('[data-view="victoria"]').boundingBox();
+  assert.ok(selected.x>=18&&selected.x+selected.width<=373,'The sixth selected view scrolls into the mobile navigation');
+  await phone.screenshot({path:new URL('../test-results/mobile-victoria.png',import.meta.url).pathname,timeout:120000});
   assert.deepEqual(errors,[]);console.log('Mobile: layout, landmark navigation and touch orbit passed.');
+  await phone.close();
+  const moving=await browser.newPage({viewport:{width:640,height:480},deviceScaleFactor:1,reducedMotion:'no-preference'});
+  moving.on('pageerror',e=>errors.push(e.message));moving.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+  await moving.goto(origin);await moving.waitForFunction(()=>window.londonWorld?.state.ready,null,{timeout:120000});
+  const flagTime=await moving.evaluate(()=>window.londonWorld.state.victoria.flagTime);
+  await moving.waitForFunction(before=>window.londonWorld.state.victoria.flagTime>before,flagTime);
+  assert.deepEqual(errors,[]);console.log('Motion: the flag animation clock advances without WebGL errors.');
 }finally{if(browser)await browser.close();if(server)server.kill();}
