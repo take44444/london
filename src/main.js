@@ -232,7 +232,7 @@ function animate(){
     scene.backgroundIntensity=lerp(f.sky,l.sky);scene.environmentIntensity=lerp(f.env,l.env);renderer.toneMappingExposure=lerp(f.exposure,l.exposure);
     scene.fog.color.copy(f.fog).lerp(new THREE.Color(l.fog),e);scene.fog.density=lerp(f.density,l.density);
     water.material.uniforms.waterColor.value.copy(f.water).lerp(new THREE.Color(l.water),e);
-    water.material.uniforms.sunColor.value.copy(sun.color);water.material.uniforms.sunDirection.value.copy(sun.position).normalize();
+    water.material.uniforms.sunColor.value.copy(sun.color).multiplyScalar(Math.min(sun.intensity/2.7,1));water.material.uniforms.sunDirection.value.copy(sun.position).normalize();
     london.mats.warmglass.emissiveIntensity=lerp(f.warm,l.warm);london.glowMat.emissiveIntensity=lerp(f.glow,l.glow);
     if(models.treeImpostor)models.treeImpostor.material.color.setScalar(THREE.MathUtils.lerp(1,.22,Math.min(l.warm/1.5,1)));
     for(const m of london.bakedMaterials)m.color.setScalar(THREE.MathUtils.lerp(1,.2,Math.min(l.warm/1.5,1)));

@@ -37,7 +37,9 @@ export function buildMapCity(scene,data,textures,helpers){
       shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
         vec2 windowCell = floor(vMapUv * vec2(4.,4.));
         float windowLight = step(.69,fract(sin(dot(windowCell,vec2(12.9898,78.233)))*43758.5453));
-        totalEmissiveRadiance += vec3(1.,.58,.24)*uCityNight*windowMask*windowLight;`);
+        vec2 pane = fract(vMapUv * vec2(4.,4.));
+        float paneMask = smoothstep(.21,.25,pane.x)*(1.-smoothstep(.75,.79,pane.x))*smoothstep(.16,.2,pane.y)*(1.-smoothstep(.79,.83,pane.y));
+        totalEmissiveRadiance += vec3(1.,.58,.24)*uCityNight*paneMask*windowLight*(.45+.55*facadeLuma);`);
     };
     m.customProgramCacheKey=()=> 'london-window-light-v1';return m;
   }
