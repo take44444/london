@@ -22,6 +22,10 @@ try {
   const state=()=>page.evaluate(()=>window.londonWorld.state);
   assert.equal((await state()).models.bigben,true);
   assert.equal((await state()).models.abbey,true);
+  assert.ok((await state()).map.buildings>10000,'The rendered city includes the London building extract');
+  assert.ok((await state()).map.recordedHeights>4000,'Recorded OSM heights are used');
+  assert.ok((await state()).map.trees>5000,'Mapped tree locations are present');
+  assert.equal((await state()).map.source,'OpenStreetMap contributors');
   assert.ok((await state()).triangles>0,'The scene rendered real geometry');
   await page.screenshot({path:new URL('../test-results/westminster.png',import.meta.url).pathname,timeout:120000});
   let before=await state();

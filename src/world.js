@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildMapCity } from './map-city.js';
 
 // All repeated architecture is instanced. Dimensions are in metres.
-export function buildLondon(scene, textures, models={}) {
+export function buildLondon(scene, textures, models={}, mapData=null) {
   const buckets = new Map();
   const bakedMaterials=[];
   const matrix = new THREE.Matrix4(), quaternion = new THREE.Quaternion();
+  let localTransform=null,mapContext=null;
+  const bridgeTransform=mapData?new THREE.Matrix4().set(1.24,0,0,62,0,1,0,0,.063,0,1,5.9,0,0,0,1):new THREE.Matrix4();
   const boxGeo = new THREE.BoxGeometry(1,1,1);
   const cylinderGeo = new THREE.CylinderGeometry(1,1,1,10);
   const coneGeo = new THREE.ConeGeometry(1,1,8);
@@ -21,7 +24,7 @@ export function buildLondon(scene, textures, models={}) {
     trim:material('#ad9b77',{roughness:.87}),
     weathered:material('#95866d',{map:textures.stone,normalMap:textures.normal,normalScale:new THREE.Vector2(.16,.16)}),
     dark:material('#423f37'),
-    roof:material('#666d68',{roughness:.78,metalness:.28}),
+    roof:material('#8a8c84',{map:textures.roof?.color,normalMap:textures.roof?.normal,normalScale:new THREE.Vector2(.24,.24),roughnessMap:textures.roof?.roughness,roughness:.78,metalness:.15}),
     gold:material('#bb9154',{metalness:.7,roughness:.38}),
     glass:material('#344b4b',{roughness:.22,metalness:.45,envMapIntensity:1.1}),
     warmglass:material('#6b6652',{roughness:.24,metalness:.35,emissive:'#ffc477',emissiveIntensity:.05}),
@@ -38,7 +41,7 @@ export function buildLondon(scene, textures, models={}) {
     buildings:[material('#b0a58d'),material('#c2baa6'),material('#8e8b80'),material('#bbad96'),material('#b3b1a8'),material('#847c6f')],
   };
   // Keep photographed masonry at metre scale on differently sized instances.
-  for(const mat of [mats.stone,mats.weathered,mats.pavement]) {
+  for(const mat of [mats.stone,mats.weathered,mats.pavement,mats.roof]) {
     mat.onBeforeCompile=shader=>{
       shader.vertexShader=shader.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
       #ifdef USE_INSTANCING
@@ -63,6 +66,7 @@ export function buildLondon(scene, textures, models={}) {
     if(!buckets.has(key))buckets.set(key,{geo,mat,matrices:[]});
     quaternion.setFromEuler(new THREE.Euler(rx,ry,rz));
     matrix.compose(new THREE.Vector3(x,y,z),quaternion,new THREE.Vector3(sx,sy,sz));
+    if(localTransform)matrix.premultiply(localTransform);
     buckets.get(key).matrices.push(matrix.clone());
   }
   const box=(x,y,z,w,h,d,mat=mats.stone,ry=0)=>instance(boxGeo,mat,x,y,z,w,h,d,0,ry);
@@ -160,6 +164,7 @@ export function buildLondon(scene, textures, models={}) {
     }
   }
   // Embankments, pavements and the Thames corridor.
+  if(!mapData){
   box(-720,-5,0,1260,14,2600,mats.ground);
   box(740,-5,0,1270,14,2600,mats.ground);
   box(-91,1.2,0,8,10,2600,mats.weathered);box(108,1.2,0,8,10,2600,mats.weathered);
@@ -169,13 +174,39 @@ export function buildLondon(scene, textures, models={}) {
     box(-205,5.29,z,.18,.04,4,mats.trim);box(145,5.29,z+340,.18,.04,4,mats.trim);
     for(const x of [-88,105]) {box(x,6.9,z, .3,1.2,.14,mats.iron);box(x,7.35,z,.15,.14,9,mats.iron);}
   }
+  }
   // Palace: a long riverside frontage with an articulated roofline.
   const palace={x:-137,z:88,w:63,d:264,h:27};
-  box(palace.x,17,palace.z,palace.w,24,palace.d);
+  const palaceTransform=mapData?new THREE.Matrix4().set(1.6,0,0,99.2,0,1,0,0,0,0,1,0,0,0,0,1):null;
+  localTransform=palaceTransform;
+  if(mapData){
+    // Long wings and transverse halls leave real open courtyards instead of a solid slab.
+    for(const [x,width] of [[-112.5,14],[-162,13],[-137,12]]){
+      box(x,17,palace.z,width,24,palace.d);roof(x,29,palace.z,width,6,palace.d);
+    }
+    for(const z of [-33,42,124,209]){
+      box(palace.x,17,z,palace.w,24,22);
+      instance(roofGeo,mats.roof,palace.x,29,z,22,6,palace.w,0,Math.PI/2);
+    }
+  }else {box(palace.x,17,palace.z,palace.w,24,palace.d);roof(palace.x,29,palace.z,55,10,264);}
+  if(textures.palaceFacade){
+    const map=textures.palaceFacade;map.repeat.set(palace.d/17,1);
+    const facing=material('#d8d2be',{map,bumpMap:map,bumpScale:.065,roughness:.9,metalness:.04});
+    for(const side of [-1,1]){
+      const facade=new THREE.Mesh(new THREE.PlaneGeometry(palace.d,24),facing);
+      facade.position.set(palace.x+side*(palace.w/2+.32),17,palace.z);facade.rotation.y=side*Math.PI/2;if(palaceTransform)facade.applyMatrix4(palaceTransform);facade.receiveShadow=true;scene.add(facade);
+    }
+  }
   box(palace.x,7,palace.z,palace.w+3,4,palace.d+2,mats.weathered);
-  roof(palace.x,29,palace.z,55,10,264);
-  box(palace.x,29,palace.z,66,.9,266,mats.trim);
-  box(palace.x,17,palace.z,65,.55,266,mats.trim);
+  if(mapData){
+    for(const y of [17,29]){
+      for(const x of [-168.5,-105.5])box(x,y,palace.z,.65,.55,266,mats.trim);
+      for(const z of [-44,220])box(palace.x,y,z,63,.55,.65,mats.trim);
+    }
+  }else {
+    box(palace.x,29,palace.z,66,.9,266,mats.trim);
+    box(palace.x,17,palace.z,65,.55,266,mats.trim);
+  }
   for(let z=-41;z<222;z+=4.25) {
     for(const y of [10,20]) {windowEast(-105.35,y,z,2.4,6.8,rand()>.65);}
     box(-104.75,17,z+2.1,.9,24,.6,mats.trim);
@@ -193,12 +224,13 @@ export function buildLondon(scene, textures, models={}) {
   // Central octagonal tower and courtyards.
   cyl(-137,35,90,7,28,mats.stone);cone(-137,56,90,8.2,17,mats.roof);cyl(-137,68,90,.3,8,mats.gold);
   for(let a=0;a<8;a++){const t=a*Math.PI/4;pinnacle(-137+Math.sin(t)*6,46,90+Math.cos(t)*6,7);}
-  for(let z=7;z<205;z+=67){box(-178,18,z,26,25,30,mats.stone);roof(-178,31,z,26,10,30);}
+  if(!mapData)for(let z=7;z<205;z+=67){box(-178,18,z,26,25,30,mats.stone);roof(-178,31,z,26,10,30);}
+  localTransform=null;
   if(models.bigben)addModel(models.bigben,-121,5,-51,96);
   else gothicTower(-121,-51,14,85,true);
-  gothicTower(-139,223,21,92,false);
+  gothicTower(mapData?-173.75:-139,mapData?213.23:223,21,92,false);
   // Parliament Square and Westminster Abbey beyond the Palace.
-  box(-246,5,-57,58,.2,67,mats.grass);
+  if(!mapData)box(-246,5,-57,58,.2,67,mats.grass);
   if(models.abbey)addModel(models.abbey,-385,4,100,56,true);
   else {
     box(-240,17,108,39,25,91,mats.stone);roof(-240,30,108,39,18,91);
@@ -211,6 +243,7 @@ export function buildLondon(scene, textures, models={}) {
   }
   // Westminster Bridge: seven shallow arches, green iron and stone piers.
   function bridge() {
+    localTransform=bridgeTransform;
     const bridgeZ=-75, length=204, start=-94, span=length/7;
     const s=new THREE.Shape();s.moveTo(0,0);s.lineTo(length,0);s.lineTo(length,10);s.lineTo(0,10);s.closePath();
     for(let i=0;i<7;i++) {
@@ -218,7 +251,7 @@ export function buildLondon(scene, textures, models={}) {
       const hole=new THREE.Path();hole.moveTo(x,0);hole.lineTo(x,1);hole.quadraticCurveTo(x+w*.5,12.6,x+w,1);hole.lineTo(x+w,0);hole.closePath();s.holes.push(hole);
     }
     const geometry=new THREE.ExtrudeGeometry(s,{depth:23,bevelEnabled:false,curveSegments:18});
-    const mesh=new THREE.Mesh(geometry,mats.iron);mesh.position.set(start,0,bridgeZ-11.5);mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+    const mesh=new THREE.Mesh(geometry,mats.iron);mesh.position.set(start,0,bridgeZ-11.5);mesh.applyMatrix4(bridgeTransform);mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
     box(8,10.3,bridgeZ,212,.8,24,mats.tarmac);
     for(const side of [-1,1]) {
       box(8,10.85,bridgeZ+side*10,212,.5,3,mats.pavement);
@@ -232,6 +265,7 @@ export function buildLondon(scene, textures, models={}) {
       for(const side of [-1,1]){cone(x,2,bridgeZ+side*15,3.4,5,mats.weathered);lamp(x,11.1,bridgeZ+side*10.3,5.8,true);}
     }
     for(let x=-90;x<110;x+=11)box(x,10.77,bridgeZ,.11,.03,5,mats.trim,Math.PI/2);
+    localTransform=null;
   }
   const glowMat = material('#fff5c7',{emissive:'#ffbe60',emissiveIntensity:.4});
   function lamp(x,y,z,height=6,ornate=false) {
@@ -244,8 +278,9 @@ export function buildLondon(scene, textures, models={}) {
     }else {box(x,y+height,z,.38,.65,.38,glowMat);cone(x,y+height+.5,z,.3,.3,mats.iron);}
   }
   bridge();
-  for(let z=-500;z<550;z+=24){lamp(-95,6.4,z,6,true);lamp(114,6.4,z,6,true);}
+  if(!mapData)for(let z=-500;z<550;z+=24){lamp(-95,6.4,z,6,true);lamp(114,6.4,z,6,true);}
   // County Hall: curved frontage suggested by short articulated bays.
+  if(!mapData){
   box(161,22,-144,63,34,106,mats.buildings[1]);roof(161,40,-144,64,14,110,mats.roof);
   for(let z=-195;z<-91;z+=6) {
     box(127,24,z,2,36,1.2,mats.trim);
@@ -253,8 +288,10 @@ export function buildLondon(scene, textures, models={}) {
   }
   box(161,29,-144,68,2,25,mats.trim);box(126,35,-144,10,16,26,mats.stone);
   for(let i=-3;i<=3;i++)cyl(120,22,-144+i*3,.7,22,mats.trim);
+  }
+  localTransform=null;
   // London Eye. The cabins are counter-rotated to remain level.
-  const eye = new THREE.Group();eye.position.set(138,72,-243);eye.rotation.y=-.12;scene.add(eye);
+  const eye = new THREE.Group();eye.position.set(mapData?220.19:138,mapData?69:72,mapData?-345.06:-243);eye.rotation.y=mapData?Math.PI/2-.13:-.12;if(mapData)eye.scale.setScalar(1.055);scene.add(eye);
   const rotating = new THREE.Group();eye.add(rotating);
   const wheelMaterial=material('#f4f0df',{metalness:.4,roughness:.36});
   const capsuleMat=new THREE.MeshPhysicalMaterial({color:'#afc9c6',metalness:.22,roughness:.12,transparent:true,opacity:.68,clearcoat:1});
@@ -280,9 +317,11 @@ export function buildLondon(scene, textures, models={}) {
     capsules.push({pod,angle:a});eye.add(pod);
   }
   const hub=new THREE.Mesh(new THREE.CylinderGeometry(2,2,6,24),wheelMaterial);hub.rotation.x=Math.PI/2;eye.add(hub);
-  rod([111,6,-219],[138,72,-240],2.1,mats.white);rod([168,6,-220],[138,72,-240],2.1,mats.white);
-  rod([138,72,-247],[141,6,-280],.6,mats.white);
+  if(mapData)localTransform=new THREE.Matrix4().makeTranslation(220.19,69,-345.06).multiply(new THREE.Matrix4().makeRotationY(Math.PI/2-.13)).multiply(new THREE.Matrix4().makeTranslation(-138,-72,243));
+  rod([111,mapData?8:6,-219],[138,72,-240],2.1,mats.white);rod([168,mapData?8:6,-220],[138,72,-240],2.1,mats.white);
+  rod([138,72,-247],[141,mapData?8:6,mapData?-205:-280],.6,mats.white);
   box(140,7,-221,65,3,23,mats.pavement);
+  localTransform=null;
   // Trees with irregular layered crowns and visible branching.
   function tree(x,z,height=13) {
     if(models.treeImpostor){
@@ -313,6 +352,7 @@ export function buildLondon(scene, textures, models={}) {
       instance(sphereGeo,color,dx,yy,dz,height*(.15+rand()*.1),height*(.18+rand()*.08),height*(.15+rand()*.09),rand(),rand(),rand());
     }
   }
+  if(!mapData){
   for(let z=-590;z<570;z+=18) {
     if(z>-97&&z<-54)continue;
     tree(124+rand()*8,z,10+rand()*5);
@@ -320,6 +360,7 @@ export function buildLondon(scene, textures, models={}) {
   }
   for(let i=0;i<42;i++) {
     const x=-230-rand()*55,z=-90+rand()*65;tree(x,z,10+rand()*8);
+  }
   }
   // City blocks. Every frontage has windows, cornices, roofs and chimneys.
   function cityBuilding(x,z,w,d,h,mat) {
@@ -342,6 +383,8 @@ export function buildLondon(scene, textures, models={}) {
     for(let c=0;c<Math.floor(w/10);c++)box(x-w*.3+c*8,8+h,z+d*.22,1,5,2.5,mats.weathered);
     for(let k=1;k<levels;k+=2)box(x,6.5+k*4.4,z,w+.35,.2,d+.35,mats.trim);
   }
+  if(mapData)mapContext=buildMapCity(scene,mapData,textures,{box,cyl,tree,lamp,mats});
+  else {
   for(let row=0;row<14;row++)for(let col=0;col<18;col++) {
     const x=-330-row*48+(rand()-.5)*6,z=-650+col*76+(rand()-.5)*12;
     if(models.abbey&&x>-600&&z> -40&&z<230)continue;
@@ -367,7 +410,9 @@ export function buildLondon(scene, textures, models={}) {
   box(8,12,-625,209,2,17,mats.weathered);
   for(let x=-65;x<100;x+=42)box(x,5,-625,7,17,22,mats.weathered);
   for(let x=-85;x<105;x+=3){box(x,14,-633,.15,2,.15,mats.iron);box(x,14,-617,.15,2,.15,mats.iron);}
+  }
   // Street furniture: benches, bins, bollards and tiny riverside pedestrians.
+  if(!mapData){
   for(let z=-420;z<520;z+=26) {
     for(const x of [-98,119]) {
       box(x,7,z,1.1,.15,3,mats.weathered);box(x-.45,7.6,z,.12,1.1,3,mats.iron);
@@ -381,6 +426,7 @@ export function buildLondon(scene, textures, models={}) {
     const m=peopleMaterials[i%5],h=1.5+rand()*.3;
     cyl(x,6.3+h*.48,z,.2,h*.56,m);instance(sphereGeo,mats.trim,x,6.3+h*.92,z,.17,.2,.17);
     for(const dx of [-.12,.12])box(x+dx,6.65,z,.12,.68,.15,mats.dark);
+  }
   }
   // Moving traffic, including red double deckers.
   const vehicles=[];
@@ -410,16 +456,20 @@ export function buildLondon(scene, textures, models={}) {
   for(let i=0;i<11;i++) {
     const bus=i===0||i===4||i===8,car=vehicle(bus,['#dbd5c4','#28383b','#585d57','#9f9e92'][i%4]);
     const dir=i%2?1:-1;
-    car.position.set(-110+i*22,10.8,-75+dir*3.1);if(dir<0)car.rotation.y=Math.PI;
-    vehicles.push({group:car,dir,speed:bus?5.5:7.2,route:'bridge'});
+    const bridgeX=-100+i*20;
+    car.position.set(bridgeX,10.8,-75+dir*3.1).applyMatrix4(bridgeTransform);car.rotation.y=(dir<0?Math.PI:0)-(mapData?Math.atan2(.063,1.24):0);
+    vehicles.push({group:car,dir,speed:bus?5.5:7.2,route:'bridge',bridgeX});
   }
+  const trafficCurves=mapContext?mapContext.majorRoads.filter(r=>['Whitehall','Millbank','Victoria Street','Westminster Bridge Road'].includes(r.t.name)&&r.p.length>3).sort((a,b)=>b.p.length-a.p.length).slice(0,6).map(r=>new THREE.CatmullRomCurve3(r.p.map(p=>new THREE.Vector3(p[0],5.35,p[1])))):[];
   for(let i=0;i<9;i++) {
     const car=vehicle(i===2,'#3c4643'),dir=i%2?1:-1;
     car.rotation.y=dir>0?-Math.PI/2:Math.PI/2;car.position.set(-205+dir*4,5.3,-450+i*100);
-    vehicles.push({group:car,dir,speed:6,route:'road'});
+    if(trafficCurves.length){const curve=trafficCurves[i%trafficCurves.length];vehicles.push({group:car,dir,speed:6,route:'curve',curve,u:i/9,length:curve.getLength()});}
+    else vehicles.push({group:car,dir,speed:6,route:'road'});
   }
   // Riverboats and their subtle wakes.
   const boats=[];
+  const riverCurve=mapData?.riverPath?new THREE.CatmullRomCurve3(mapData.riverPath.map(p=>new THREE.Vector3(p[0],0,p[1]))):null;
   for(let i=0;i<5;i++) {
     const group=new THREE.Group(),w=5+rand()*2,len=17+rand()*8;
     const hull=new THREE.Mesh(new THREE.CylinderGeometry(1,1,1,5),mats.white);hull.rotation.z=Math.PI/2;hull.rotation.y=Math.PI/2;hull.scale.set(2.8,len/2,w/2);hull.position.y=1;group.add(hull);
@@ -432,7 +482,7 @@ export function buildLondon(scene, textures, models={}) {
     }
     group.position.set(-42+i*26,0,-510+i*206);if(i%2)group.rotation.y=Math.PI;
     mergeGroup(group);scene.add(group);
-    boats.push({group,dir:i%2?-1:1,speed:2.1+i*.23,phase:i});
+    boats.push({group,dir:i%2?-1:1,speed:2.1+i*.23,phase:i,u:.3+i*.1});
   }
   // Small flock circling the river.
   const birds=new THREE.Group();scene.add(birds);
@@ -450,16 +500,21 @@ export function buildLondon(scene, textures, models={}) {
     mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);instanceCount+=matrices.length;
   }
   return {
-    mats,glowMat,instanceCount,bakedMaterials,
+    mats,glowMat,instanceCount,bakedMaterials,mapContext,
     update(time,dt) {
       const angle=time*.005;
       rotating.rotation.z=angle;
       for(const {pod,angle:a} of capsules)pod.position.set(Math.cos(a+angle)*62.3,Math.sin(a+angle)*62.3,0);
       for(const v of vehicles) {
-        if(v.route==='bridge'){v.group.position.x+=v.speed*dt*v.dir;if(v.group.position.x>119)v.group.position.x=-104;if(v.group.position.x< -104)v.group.position.x=119;}
+        if(v.route==='bridge'){v.bridgeX+=v.speed*dt*v.dir;if(v.bridgeX>119)v.bridgeX=-104;if(v.bridgeX< -104)v.bridgeX=119;v.group.position.set(v.bridgeX,10.8,-75+v.dir*3.1).applyMatrix4(bridgeTransform);}
+        else if(v.route==='curve'){v.u=(v.u+dt*v.speed*v.dir/v.length+1)%1;v.group.position.copy(v.curve.getPointAt(v.u));const t=v.curve.getTangentAt(v.u).multiplyScalar(v.dir);v.group.rotation.y=-Math.atan2(t.z,t.x);}
         else {v.group.position.z+=v.speed*dt*v.dir;if(Math.abs(v.group.position.z)>650)v.group.position.z=-v.dir*650;}
       }
-      for(const b of boats) {b.group.position.z+=dt*b.speed*b.dir;b.group.position.y=Math.sin(time*.7+b.phase)*.09;b.group.rotation.z=Math.sin(time*.43+b.phase)*.012;if(Math.abs(b.group.position.z)>850)b.group.position.z=-850*b.dir;}
+      for(const b of boats) {
+        if(riverCurve){b.u=(b.u+dt*b.speed*b.dir/riverCurve.getLength()+1)%1;b.group.position.copy(riverCurve.getPointAt(b.u));const t=riverCurve.getTangentAt(b.u).multiplyScalar(b.dir);b.group.position.x+=(b.phase-2)*12;b.group.rotation.y=Math.atan2(t.x,t.z);}
+        else {b.group.position.z+=dt*b.speed*b.dir;if(Math.abs(b.group.position.z)>850)b.group.position.z=-850*b.dir;}
+        b.group.position.y=Math.sin(time*.7+b.phase)*.09;b.group.rotation.z=Math.sin(time*.43+b.phase)*.012;
+      }
       birds.rotation.y=time*.017;
       birds.children.forEach((b,i)=>{b.position.y+=Math.sin(time*2+i)*.003;});
     },

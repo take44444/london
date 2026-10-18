@@ -11,12 +11,12 @@ const canvas=document.querySelector('#world');
 const scene=new THREE.Scene();
 scene.background=new THREE.Color('#d4d4b9');
 scene.fog=new THREE.FogExp2('#c6c7ac',.0008);
-const camera=new THREE.PerspectiveCamera(43,innerWidth/innerHeight,.8,4800);
+const camera=new THREE.PerspectiveCamera(46,innerWidth/innerHeight,.8,6400);
 const views={
-  westminster:{position:[224,89,294],target:[-82,33,-8],title:'Westminster',description:'Where the city’s story meets the river. A little history, a little golden light.',subtitle:'PALACE OF WESTMINSTER'},
+  westminster:{position:[142,64,235],target:[-100,31,-32],title:'Westminster',description:'Where the city’s story meets the river. A little history, a little golden light.',subtitle:'PALACE OF WESTMINSTER'},
   bigben:{position:[37,84,80],target:[-121,49,-51],title:'Time, standing tall.',description:'Look a little closer. Four clock faces, Gothic spires, and a silhouette known around the world.',subtitle:'ELIZABETH TOWER · BIG BEN'},
-  eye:{position:[350,107,-30],target:[138,65,-243],title:'A turn above the city.',description:'Follow the quiet rhythm of the London Eye. The river keeps moving. So does the view.',subtitle:'THE LONDON EYE · SOUTH BANK'},
-  river:{position:[42,29,380],target:[-22,26,-118],title:'Life along the Thames.',description:'Drift down to the water. Watch the boats pass and the city find its own reflection.',subtitle:'RIVER THAMES · WESTMINSTER BRIDGE'},
+  eye:{position:[-110,95,-220],target:[220.19,65,-345.06],title:'A turn above the city.',description:'Follow the quiet rhythm of the London Eye. The river keeps moving. So does the view.',subtitle:'THE LONDON EYE · SOUTH BANK'},
+  river:{position:[90,29,380],target:[80,26,-180],title:'Life along the Thames.',description:'Drift down to the water. Watch the boats pass and the city find its own reflection.',subtitle:'RIVER THAMES · WESTMINSTER BRIDGE'},
   abbey:{position:[-200,110,-155],target:[-385,26,100],title:'Written in stone.',description:'Explore a textured 3D scan of Westminster Abbey. Centuries of intricate stonework, from a new angle.',subtitle:'WESTMINSTER ABBEY · 3D SCAN'},
 };
 let renderer;
@@ -64,6 +64,14 @@ const loadTexture=(name,color=false)=>new Promise(resolve=>{
 const [stone,normal,roughness,waterNormals]=await Promise.all([
   loadTexture('stone-color.jpg',true),loadTexture('stone-normal.jpg'),loadTexture('stone-roughness.jpg'),loadTexture('waternormals.jpg'),
 ]);
+const surfaceEntries=await Promise.all(['brick','plaster','asphalt','roof'].map(async name=>{
+  const [color,normal,roughness]=await Promise.all([loadTexture(`${name}-color.jpg`,true),loadTexture(`${name}-normal.jpg`),loadTexture(`${name}-roughness.jpg`)]);
+  return [name,{color,normal,roughness}];
+}));
+const [facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,mapData]=await Promise.all([
+  loadTexture('portland-facade-v1.jpg',true),loadTexture('stock-brick-facade-v1.jpg',true),loadTexture('westminster-facade-v1.jpg',true),loadTexture('grass-color.jpg',true),loadTexture('grass-normal.jpg'),loadTexture('grass-roughness.jpg'),
+  fetch('./assets/london-map.json').then(r=>{if(!r.ok)throw Error('Map unavailable');return r.json();}).catch(error=>{console.warn(error.message);return null;}),
+]);
 const dracoLoader=new DRACOLoader(manager).setDecoderPath('./assets/draco/');
 const modelLoader=new GLTFLoader(manager);modelLoader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(dracoLoader);
 const modelNames={bigben:'big-ben.glb',abbey:'westminster-abbey.glb'};
@@ -74,8 +82,8 @@ const models=Object.fromEntries(await Promise.all(Object.entries(modelNames).map
 dracoLoader.dispose();
 const treePicture=await loadTexture('tree-billboard.png',true);
 models.treeImpostor={material:new THREE.MeshStandardMaterial({map:treePicture,alphaTest:.4,side:THREE.DoubleSide,roughness:1,color:'#b4b99b'}),aspect:326/480};
-const london=buildLondon(scene,{stone,normal,roughness},models);
-const water=new Water(new THREE.PlaneGeometry(198,2800),{
+const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,...Object.fromEntries(surfaceEntries)},models,mapData);
+const water=new Water(new THREE.PlaneGeometry(mapData?6000:198,mapData?6000:2800),{
   textureWidth:mobile?256:512,textureHeight:mobile?256:512,
   waterNormals,sunDirection:sun.position.clone().normalize(),sunColor:'#ffe4b0',waterColor:'#555e43',distortionScale:1.8,fog:true,
 });
@@ -111,7 +119,7 @@ function makeTreeImpostor(source){
 // Broad, soft cloud layers add depth without hiding the photographic sky.
 const labels=[
   {id:'bigben',name:'BIG BEN',position:new THREE.Vector3(-121,110,-51)},
-  {id:'eye',name:'LONDON EYE',position:new THREE.Vector3(138,147,-243)},
+  {id:'eye',name:'LONDON EYE',position:new THREE.Vector3(220.19,148,-345.06)},
   {id:'westminster',name:'PALACE OF WESTMINSTER',position:new THREE.Vector3(-137,47,100)},
   {id:'abbey',name:'WESTMINSTER ABBEY',position:new THREE.Vector3(-385,68,100)},
 ];
@@ -137,7 +145,7 @@ function setView(id,instant=false) {
   document.querySelector('#location-subtitle').textContent=view.subtitle;
   document.querySelector('#location-index').textContent=`0${Object.keys(views).indexOf(id)+1} / 05`;
   const endPos=new THREE.Vector3(...view.position);
-  if(innerWidth<700&&id==='westminster'){endPos.set(335,168,410);}
+  if(innerWidth<700&&id==='westminster'){endPos.set(260,180,560);}
   if(instant||reducedMotion){camera.position.copy(endPos);controls.target.fromArray(view.target);controls.update();flight=null;}
   else flight={start:performance.now(),from:camera.position.clone(),to:endPos,fromTarget:controls.target.clone(),toTarget:new THREE.Vector3(...view.target)};
 }
@@ -164,7 +172,7 @@ document.addEventListener('fullscreenchange',()=>{document.querySelector('#fulls
 
 const lighting={
   day:{sun:'#fff1d3',sunPower:2.4,hemiPower:.95,fillPower:.2,sky:.8,env:.45,exposure:1,fog:'#aebdbd',density:.0012,water:'#3b534c',warm:.015,glow:.15,sunPos:[-180,360,210]},
-  golden:{sun:'#ffcf9a',sunPower:2.7,hemiPower:.75,fillPower:.22,sky:.65,env:.4,exposure:1.05,fog:'#b5b29c',density:.00085,water:'#464f3d',warm:.08,glow:.5,sunPos:[-260,155,235]},
+  golden:{sun:'#ffcf9a',sunPower:2.7,hemiPower:.75,fillPower:.22,sky:.65,env:.4,exposure:1.05,fog:'#a9adb1',density:.00085,water:'#464f3d',warm:.08,glow:.5,sunPos:[-260,155,235]},
   night:{sun:'#a0b4e8',sunPower:.15,hemiPower:.36,fillPower:.32,sky:.07,env:.18,exposure:1.3,fog:'#1c2c46',density:.0009,water:'#1d3540',warm:1.5,glow:3,sunPos:[-250,250,180]},
 };
 function setLight(mode,instant=false){
@@ -205,7 +213,7 @@ let toastTimer;
 function toast(message){const el=document.querySelector('#toast');el.textContent=message;el.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('visible'),3000);}
 
 const temp=new THREE.Vector3(),clock=new THREE.Clock();
-let elapsed=0,frame=0;
+let elapsed=0,frame=0,lastShadowUpdate=0;
 function animate(){
   requestAnimationFrame(animate);
   if(document.hidden){clock.getDelta();return;}
@@ -228,6 +236,7 @@ function animate(){
     london.mats.warmglass.emissiveIntensity=lerp(f.warm,l.warm);london.glowMat.emissiveIntensity=lerp(f.glow,l.glow);
     if(models.treeImpostor)models.treeImpostor.material.color.setScalar(THREE.MathUtils.lerp(1,.22,Math.min(l.warm/1.5,1)));
     for(const m of london.bakedMaterials)m.color.setScalar(THREE.MathUtils.lerp(1,.2,Math.min(l.warm/1.5,1)));
+    for(const uniform of london.mapContext?.nightUniforms||[])uniform.value=london.mats.warmglass.emissiveIntensity;
     if(t===1)lightFlight=null;
   }
   controls.update(dt);
@@ -237,6 +246,7 @@ function animate(){
   if(reducedMotion&&!renderNeeded&&!flight&&!lightFlight&&!controls.autoRotate)return;
   london.update(reducedMotion?0:elapsed,reducedMotion?0:dt);
   if(!reducedMotion)water.material.uniforms.time.value+=dt*.32;
+  if(!reducedMotion&&elapsed-lastShadowUpdate>.12){renderer.shadowMap.needsUpdate=true;lastShadowUpdate=elapsed;}
   renderer.render(scene,camera);
   renderNeeded=false;
   {
@@ -263,5 +273,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,source:m.source.name}:null,abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };
