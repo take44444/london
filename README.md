@@ -34,6 +34,8 @@ The visible sky uses a locally hosted 8K photograph on desktop and 4K on smaller
 
 The river uses a water-air Fresnel reflectance of approximately 0.02, filtered linear reflections, several scales of wind ripples and five boat-following wake sources. Reduced-motion preferences freeze the environmental motion.
 
+Nearby riverfront buildings have actual recessed window openings and projecting sills. Window bays fit each wall segment, and complete atlas rows fit each storey, avoiding sliced windows at corners and rooflines. The same openings control glass roughness and night illumination. Spatial groups switch to matching flat frontages at distance, with hysteresis to reduce switching while orbiting. Courtyard openings follow the inward-facing walls. These details remain interpretations of the mapped buildings, rather than surveyed architectural geometry.
+
 ## Bundled map data
 
 `dist/assets/london-map.json` is an adapted extract of [OpenStreetMap](https://www.openstreetmap.org/copyright) data, supplied by [Geofabrik](https://download.geofabrik.de/europe/united-kingdom/england/greater-london.html), under the [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Copyright OpenStreetMap contributors. Coordinates are projected into local metres around Elizabeth Tower, with source attribution and projection parameters retained in the JSON. The app makes no live map requests.

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {emitFacade,facadeAtlases,windowMaskGLSL} from './facades.mjs';
 
 const TAU=Math.PI*2;
 const signedArea=ring=>ring.reduce((sum,a,i)=>{const b=ring[(i+1)%ring.length];return sum+a[0]*b[1]-b[0]*a[1];},0)/2;
@@ -8,7 +9,8 @@ const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)
 /** Render the bundled OSM extract in metres, preserving courtyard holes and street curves. */
 export function buildMapCity(scene,data,textures,helpers){
   const {box,cyl,tree,lamp,mats}=helpers;
-  const batches=new Map(),facadeUniforms=[];
+  const batches=new Map(),facadeBatches=new Map(),facadeUniforms=[],facadeLODs=[];
+  let recessedWindows=0,detailedFrontages=0;
   let buildingCount=0,wallCount=0,roadCount=0,treeCount=0,recordedHeights=0;
   const material=(color,options={})=>new THREE.MeshStandardMaterial({color,roughness:.92,side:THREE.DoubleSide,...options});
   const surface=(name,color,size)=>{
@@ -23,25 +25,35 @@ export function buildMapCity(scene,data,textures,helpers){
   const masonry=surface('brick','#c9b79c',4),terracotta=material('#99634b');
   const roof=surface('asphalt','#777b75',7);
   const slates=surface('roof','#9a9c93',3);
-  const facades=[makeFacade(textures.facade,'#d7d1c3'),makeFacade(textures.brickFacade||textures.facade,'#d1c6b0'),makeFacade(textures.facade,'#bdc2bd'),makeFacade(textures.brickFacade||textures.facade,'#afa091')];
-  function makeFacade(map,color){
+  const facades=[makeFacade(textures.facade,'#e8e4db',facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,'#e5dfd2',facadeAtlases.brick),makeFacade(textures.facade,'#d9dfdc',facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,'#d5c9bc',facadeAtlases.brick)];
+  function makeFacade(map,color,atlas){
     const m=material(color,{map,vertexColors:true,metalness:.02,envMapIntensity:.75});
+    m.userData.atlas=atlas;
     const night={value:0};facadeUniforms.push(night);
     m.onBeforeCompile=shader=>{
       shader.uniforms.uCityNight=night;
-      shader.fragmentShader='uniform float uCityNight;\n'+shader.fragmentShader;
+      shader.fragmentShader=`uniform float uCityNight;
+        float cityPane(vec2 p,vec4 bounds,vec2 edge){
+          vec2 low=smoothstep(bounds.xy-edge,bounds.xy+edge,p);
+          vec2 high=1.-smoothstep(bounds.zw-edge,bounds.zw+edge,p);
+          return low.x*low.y*high.x*high.y;
+        }\n`+shader.fragmentShader;
       shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
         float facadeLuma = dot(texture2D(map,vMapUv).rgb,vec3(.2126,.7152,.0722));
-        float windowMask = 1. - smoothstep(.075,.21,facadeLuma);
-        roughnessFactor = mix(.32,.96,1.-windowMask);`);
+        vec2 atlasUv=fract(vMapUv);
+        vec2 atlasEdge=max(fwidth(vMapUv)*.6,vec2(.0005));
+        float windowMask=0.;
+        ${windowMaskGLSL(atlas)}
+        roughnessFactor = mix(.94,.25,windowMask);`);
       shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
         vec2 windowCell = floor(vMapUv * vec2(4.,4.));
-        float windowLight = step(.69,fract(sin(dot(windowCell,vec2(12.9898,78.233)))*43758.5453));
-        vec2 pane = fract(vMapUv * vec2(4.,4.));
-        float paneMask = smoothstep(.21,.25,pane.x)*(1.-smoothstep(.75,.79,pane.x))*smoothstep(.16,.2,pane.y)*(1.-smoothstep(.79,.83,pane.y));
-        totalEmissiveRadiance += vec3(1.,.58,.24)*uCityNight*paneMask*windowLight*(.45+.55*facadeLuma);`);
+        windowCell.y=0.;
+        ${atlas.rows.slice(1).map(y=>`windowCell.y+=step(${(1-y/atlas.height).toFixed(7)},atlasUv.y);`).join('\n')}
+        float windowLight = step(.69,fract(sin(dot(windowCell,vec2(12.9898,78.233))+dot(vColor.rgb,vec3(173.,79.,37.)))*43758.5453));
+        float glassMask=1.-smoothstep(.12,.42,facadeLuma);
+        totalEmissiveRadiance += vec3(1.,.58,.24)*uCityNight*windowMask*glassMask*windowLight;`);
     };
-    m.customProgramCacheKey=()=> 'london-window-light-v1';return m;
+    m.customProgramCacheKey=()=> 'london-recessed-windows-v2-'+(atlas===facadeAtlases.brick?'brick':'stone');return m;
   }
   function batch(mat,cx=0,cz=0){
     const key=mat.uuid+':'+Math.floor(cx/280)+':'+Math.floor(cz/280);
@@ -56,6 +68,12 @@ export function buildMapCity(scene,data,textures,helpers){
   function quad(b,points,uvs,color){
     triangle(b,[points[0],points[2],points[1]],[uvs[0],uvs[2],uvs[1]],color);
     triangle(b,[points[0],points[3],points[2]],[uvs[0],uvs[3],uvs[2]],color);
+  }
+  const emptyBatch=mat=>({mat,p:[],uv:[],color:[],indices:[]});
+  function facadeBatch(mat,x,z){
+    const ix=Math.floor(x/220),iz=Math.floor(z/220),key=mat.uuid+':'+ix+':'+iz;
+    if(!facadeBatches.has(key))facadeBatches.set(key,{mat,x:(ix+.5)*220,z:(iz+.5)*220,coarse:emptyBatch(mat),fine:emptyBatch(mat),hasDetails:false});
+    return facadeBatches.get(key);
   }
   function cleaned(ring,clockwise=false){
     let p=ring.filter((point,i)=>!i||Math.hypot(point[0]-ring[i-1][0],point[1]-ring[i-1][1])>.03);
@@ -153,19 +171,25 @@ export function buildMapCity(scene,data,textures,helpers){
     const pitched=building.roofRect&&building.p.length===1&&building.p[0].length===1&&height>9&&(['gabled','hipped','mansard','pyramidal'].includes(t['roof:shape'])||(!t['roof:shape']&&area<900&&height<28&&h>.3));
     const pitch=pitched?Math.min(numeric(t['roof:height'],3.2),height*.3):0;
     const mappedLevels=numeric(t['building:levels'],0);
-    const verticalScale=mappedLevels>0?mappedLevels/(Math.max(height-pitch,1)*4):1/14.4;
     const y0=5+min,y1=5+height-pitch,mat=facades[t.name==='County Hall'?0:Math.floor(h*facades.length)],color=[.8+hash(id+7)*.2,.8+hash(id+11)*.2,.78+hash(id+13)*.2];
-    const b=batch(mat,cx,cz);
+    const riverDistance=data.riverPath?Math.min(...data.riverPath.map(p=>Math.hypot(cx-p[0],cz-p[1]))):Math.abs(cx);
+    const detail=Math.hypot(cx,cz)<800&&riverDistance<280&&height<90;
+    const fb=facadeBatch(mat,cx,cz);
+    const floors=Math.max(1,Math.round(mappedLevels?mappedLevels-numeric(t['building:min_level'],min/3.55):((height-pitch-min)/3.55)));
     for(const polygon of building.p){
       const rings=polygon.map((r,i)=>cleaned(r,i>0));
       for(const ring of rings){
         if(ring.length<3)continue;
-        let u=hash(id+4)*12;
         for(let i=0;i<ring.length;i++){
           const a=ring[i],c=ring[(i+1)%ring.length],len=Math.hypot(c[0]-a[0],c[1]-a[1]);
           if(len<.08)continue;
-          quad(b,[[a[0],y0,a[1]],[c[0],y0,c[1]],[c[0],y1,c[1]],[a[0],y1,a[1]]],[[u/12,min*verticalScale],[(u+len)/12,min*verticalScale],[(u+len)/12,(height-pitch)*verticalScale],[u/12,(height-pitch)*verticalScale]],color);
-          u+=len;wallCount++;
+          const detailed=detail&&len>=2.5&&len<160;
+          const count=emitFacade({a,c,bottom:y0,top:y1,floors,bays:Math.max(1,Math.round(len/3.25)),seed:id,atlas:mat.userData.atlas,color,coarse:fb.coarse,fine:detailed?fb.fine:null,quad});
+          if(!detailed){
+            // Keep identical flat geometry in fine tiles for walls too small to recess.
+            emitFacade({a,c,bottom:y0,top:y1,floors,bays:Math.max(1,Math.round(len/3.25)),seed:id,atlas:mat.userData.atlas,color,coarse:fb.fine,quad});
+          }else {recessedWindows+=count;detailedFrontages++;fb.hasDetails=true;}
+          wallCount++;
           // Low relief cornices break up the silhouettes without flattening the footprints.
           if(len>3&&Math.hypot(cx,cz)<850){
             const angle=-Math.atan2(c[1]-a[1],c[0]-a[0]);
@@ -219,12 +243,21 @@ export function buildMapCity(scene,data,textures,helpers){
       if(walked>35){walked=0;lamp(x-dz/len*2,5.3,z+dx/len*2,5.8,true);}
     }
   }
-  for(const b of batches.values()){
-    if(!b.p.length)continue;
+  function meshFor(b){
+    if(!b.p.length)return null;
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(b.p,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(b.uv,2));
     if(b.mat.vertexColors)geometry.setAttribute('color',new THREE.Float32BufferAttribute(b.color,3));
     geometry.setIndex(b.indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();
-    const mesh=new THREE.Mesh(geometry,b.mat);mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+    const mesh=new THREE.Mesh(geometry,b.mat);mesh.castShadow=true;mesh.receiveShadow=true;return mesh;
   }
-  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,majorRoads,nightUniforms:facadeUniforms};
+  for(const b of batches.values()){const mesh=meshFor(b);if(mesh)scene.add(mesh);}
+  for(const b of facadeBatches.values()){
+    const far=meshFor(b.coarse);if(!far)continue;
+    if(!b.hasDetails){scene.add(far);continue;}
+    const near=meshFor(b.fine);if(!near)continue;
+    const lod=new THREE.LOD();lod.position.set(b.x,20,b.z);
+    near.position.set(-b.x,-20,-b.z);far.position.copy(near.position);
+    lod.addLevel(near,0);lod.addLevel(far,620,.12);scene.add(lod);facadeLODs.push(lod);
+  }
+  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
 }

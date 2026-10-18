@@ -26,6 +26,9 @@ try {
   assert.ok((await state()).map.recordedHeights>4000,'Recorded OSM heights are used');
   assert.ok((await state()).map.trees>5000,'Mapped tree locations are present');
   assert.equal((await state()).map.source,'OpenStreetMap contributors');
+  const facades=(await state()).map.facades;
+  assert.ok(facades.recessedWindows>10000&&facades.recessedWindows<100000,'Riverfront windows have a bounded geometry budget');
+  assert.ok(facades.lodGroups>0&&facades.nearGroups>0,'Nearby facade geometry is selected');
   assert.ok((await state()).triangles>100000,'The city geometry renders in addition to fullscreen effects');
   assert.equal((await state()).rendering.antialias,'SMAA');
   assert.equal((await state()).rendering.contactShading,true);
@@ -34,6 +37,9 @@ try {
   await page.waitForFunction(()=>window.londonWorld.state.rendering.width===1100&&window.londonWorld.state.rendering.height===700);
   await page.setViewportSize({width:1280,height:800});
   await page.waitForFunction(()=>window.londonWorld.state.rendering.width===1280&&window.londonWorld.state.rendering.height===800);
+  await page.mouse.move(810,380);await page.mouse.wheel(0,4000);
+  await page.waitForFunction(initial=>window.londonWorld.state.map.facades.nearGroups<initial,facades.nearGroups);
+  await page.locator('#reset').click();
   await page.screenshot({path:new URL('../test-results/westminster.png',import.meta.url).pathname,timeout:120000});
   let before=await state();
   await page.mouse.move(830,360);await page.mouse.down();await page.mouse.move(960,395);await page.mouse.up();

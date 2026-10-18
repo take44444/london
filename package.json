@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node serve.mjs",
     "build": "esbuild src/main.js --bundle --format=esm --minify --sourcemap --outfile=dist/scene.js",
-    "test": "node tests/browser.mjs"
+    "test": "node tests/facades.mjs && node tests/browser.mjs"
   },
   "keywords": [],
   "author": "",
