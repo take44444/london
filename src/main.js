@@ -78,15 +78,15 @@ const [facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,mapData,
 ]);
 const dracoLoader=new DRACOLoader(manager).setDecoderPath('./assets/draco/');
 const modelLoader=new GLTFLoader(manager);modelLoader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(dracoLoader);
-const modelNames={bigben:'big-ben.glb',abbey:'westminster-abbey.glb'};
+const modelNames={bigben:'big-ben.glb',abbey:'westminster-abbey.glb',tree:'tree-canopy.glb'};
 const models=Object.fromEntries(await Promise.all(Object.entries(modelNames).map(async([name,file])=>{
   try{return [name,(await modelLoader.loadAsync(`./assets/${file}`)).scene];}
   catch(error){console.warn(`Model unavailable: ${file}`,error.message);return [name,null];}
 })));
 dracoLoader.dispose();
 const treePicture=await loadTexture('tree-billboard.png',true);
-models.treeImpostor={material:new THREE.MeshStandardMaterial({map:treePicture,alphaTest:.4,side:THREE.DoubleSide,roughness:1,color:'#b4b99b'}),aspect:326/480};
-const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,unionFlag,...Object.fromEntries(surfaceEntries)},models,mapData);
+models.treeImpostor={material:new THREE.MeshBasicMaterial({map:treePicture,alphaTest:.4,side:THREE.DoubleSide,color:'#ffffff'}),aspect:326/480};
+const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,unionFlag,...Object.fromEntries(surfaceEntries)},models,mapData,{mobile});
 const river=createRiver(waterNormals,sun.position,renderer,!!mapData,mobile);
 const water=river.mesh;scene.add(water);
 const pmrem=new THREE.PMREMGenerator(renderer);
@@ -117,23 +117,9 @@ try{
     if(oldBackground?.isTexture&&oldBackground!==environment)oldBackground.dispose();
   }
 }catch{console.warn('Using the HDR sky background.');}
+london.prepareVegetation(renderer,environment);
 const rendering=createRendering(renderer,scene,camera,mobile);
 await rendering.ready;
-
-function makeTreeImpostor(source){
-  const tree=source.clone(true),s=new THREE.Scene();
-  const box=new THREE.Box3().setFromObject(tree),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3());
-  tree.position.sub(new THREE.Vector3(center.x,box.min.y,center.z));s.add(tree);
-  s.add(new THREE.HemisphereLight('#e0e7d2','#485037',2));
-  const light=new THREE.DirectionalLight('#ffe8c0',2.6);light.position.set(-10,20,15);s.add(light);
-  const width=Math.max(size.x,size.z)*1.08,height=size.y*1.04;
-  const c=new THREE.OrthographicCamera(-width/2,width/2,height,0,.1,height*10);c.position.set(0,height/2,height*4);c.lookAt(0,height/2,0);
-  const rt=new THREE.WebGLRenderTarget(512,512,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter});
-  rt.texture.colorSpace=THREE.SRGBColorSpace;
-  const oldColor=renderer.getClearColor(new THREE.Color()),oldAlpha=renderer.getClearAlpha();
-  renderer.setClearColor(0,0);renderer.setRenderTarget(rt);renderer.render(s,c);renderer.setRenderTarget(null);renderer.setClearColor(oldColor,oldAlpha);
-  return {material:new THREE.MeshBasicMaterial({map:rt.texture,alphaTest:.45,side:THREE.DoubleSide}),aspect:width/height,target:rt};
-}
 
 // Broad, soft cloud layers add depth without hiding the photographic sky.
 const labels=[
@@ -270,6 +256,7 @@ function animate(){
   if(controls.target.y<3){const correction=3-controls.target.y;controls.target.y+=correction;camera.position.y+=correction;}
   if(camera.position.y<4)camera.position.y=4;
   if(reducedMotion&&!renderNeeded&&!flight&&!lightFlight&&!controls.autoRotate)return;
+  if(london.updateVegetation(camera,reducedMotion?0:elapsed))renderer.shadowMap.needsUpdate=true;
   london.update(reducedMotion?0:elapsed,reducedMotion?0:dt);
   london.updateWakes(river.wakes);
   if(!reducedMotion)water.material.uniforms.time.value+=dt;
@@ -300,5 +287,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,palace:london.palaceInfo,victoria:london.victoriaInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:models.abbey?new THREE.Box3().setFromObject(models.abbey):null,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };

@@ -3,9 +3,10 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildMapCity } from './map-city.js';
 import { buildPalace } from './palace.mjs';
 import {buildVictoriaTower,victoriaPose} from './victoria.mjs';
+import {createVegetation} from './vegetation.mjs';
 
 // All repeated architecture is instanced. Dimensions are in metres.
-export function buildLondon(scene, textures, models={}, mapData=null) {
+export function buildLondon(scene, textures, models={}, mapData=null, options={}) {
   const buckets = new Map();
   const bakedMaterials=[];
   const matrix = new THREE.Matrix4(), quaternion = new THREE.Quaternion();
@@ -284,24 +285,12 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
   rod([138,72,-247],[141,mapData?8:6,mapData?-205:-280],.6,mats.white);
   box(140,7,-221,65,3,23,mats.pavement);
   localTransform=null;
-  // Trees with irregular layered crowns and visible branching.
+  const vegetation=models.tree?createVegetation(scene,models.tree,models.treeImpostor,options.mobile):null;
+  // Nearby trees use geometry; distant trees use views baked from the same model.
   function tree(x,z,height=13) {
+    if(vegetation){vegetation.add(x,z,height);return;}
     if(models.treeImpostor){
       for(const ry of [0,Math.PI/2])instance(planeGeo,models.treeImpostor.material,x,5+height/2,z,height*models.treeImpostor.aspect,height,1,0,ry+.4);
-      return;
-    }
-    if(models.tree){
-      models.tree.updateMatrixWorld(true);
-      const bbox=new THREE.Box3().setFromObject(models.tree),size=bbox.getSize(new THREE.Vector3()),center=bbox.getCenter(new THREE.Vector3());
-      const scale=height/size.y,rotation=rand()*Math.PI*2;
-      const transform=new THREE.Matrix4().compose(new THREE.Vector3(x,5,z),new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),rotation),new THREE.Vector3(scale,scale,scale));
-      transform.multiply(new THREE.Matrix4().makeTranslation(-center.x,-bbox.min.y,-center.z));
-      models.tree.traverse(o=>{if(o.isMesh){
-        const key=o.geometry.uuid+o.material.uuid;
-        if(!buckets.has(key))buckets.set(key,{geo:o.geometry,mat:o.material,matrices:[]});
-        buckets.get(key).matrices.push(transform.clone().multiply(o.matrixWorld));
-        o.material.side=THREE.DoubleSide;o.material.transparent=false;o.material.alphaTest=.45;o.material.roughness=1;
-      }});
       return;
     }
     const y=5;
@@ -454,6 +443,7 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
   }
   mergeGroup(rotating);
   for(const {pod} of capsules)mergeGroup(pod);
+  vegetation?.build();
   // Finalize the static city in a small number of draw calls.
   let instanceCount=0;
   for(const {geo,mat,matrices} of buckets.values()) {
@@ -464,6 +454,9 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
   return {
     mats,glowMat,instanceCount,bakedMaterials,mapContext,palaceInfo,
     get victoriaInfo(){return {...victoria.info,...victoriaLocation};},
+    get vegetationInfo(){return vegetation?.info??null;},
+    prepareVegetation(renderer,environment){vegetation?.prepare(renderer,environment);},
+    updateVegetation(camera,time){return vegetation?.update(camera,time)??false;},
     updateWakes(target){for(let i=0;i<Math.min(target.length,boats.length);i++){const b=boats[i];target[i].set(b.group.position.x,b.group.position.z,b.group.rotation.y,b.length);}},
     update(time,dt) {
       victoria.update(time);

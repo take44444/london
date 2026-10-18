@@ -12,6 +12,8 @@ npm run dev
 
 Open http://localhost:5173. To rebuild after editing `london/src/`, run `npm run build`. Dependencies are installed in `london/`; on a new checkout, first run `npm --prefix london install`.
 
+Browser checks can also run separately from `london/` with `node tests/browser.mjs desktop`, `node tests/browser.mjs mobile`, and `node tests/browser.mjs motion`. This keeps each browser check independently resumable in environments with command time limits.
+
 ## Controls
 
 - Left drag: orbit. Right drag: pan. Scroll: zoom.
@@ -40,6 +42,10 @@ The Palace has separate pointed window openings, recessed glazing, stone mouldin
 
 Victoria Tower is a separate hollow architectural model aligned with its mapped footprint. Two tiers of tall arched windows, smaller window bands, recessed glazing, layered mouldings, an open entrance passage, pierced parapets and four corner lanterns replace the generic tower. Its overall stone height follows Parliament's published [98.5 metre height](https://www.parliament.uk/about/living-heritage/building/palace/architecture/palacestructure/victoria-tower/); secondary dimensions and carvings are interpretations. A sixth landmark view provides a closer look. The locally hosted Union Flag bends in the wind, and reduced-motion preferences freeze it alongside the other environmental animation.
 
+Vegetation uses the bundled Poly Haven tree model, with real branch and leaf geometry nearby. Leaves retain their opacity mask, and each connected leaf surface is retained as an individually oriented textured card. At load time, the renderer bakes 24 transparent views of the same model into a local GPU atlas: eight directions at three elevations. Distant trees select a view and face the camera. A distance fade and fixed detail budget limit the nearby geometry to 16 trees on desktop and eight on mobile. The canopy and its shadows share a gentle wind deformation; reduced-motion preferences freeze it. Tree shapes are generic broadleaf trees rather than surveyed London species.
+
+To rebuild the tree asset, download the 1K glTF package and separate leaf opacity map for [Tree Small 02](https://polyhaven.com/a/tree_small_02), then run `node scripts/prepare-tree.mjs /path/to/tree.gltf /path/to/leaves-alpha.jpg dist/assets/tree-canopy.glb`. The script packs leaf alpha, converts leaf surfaces to cards, simplifies the wood, and uses WebP textures and meshopt geometry compression. Browser QA checks the runtime atlas and detail budgets; the asset test inspects actual decoded alpha pixels and verifies that all 30,250 leaf islands survive.
+
 ## Bundled map data
 
 `dist/assets/london-map.json` is an adapted extract of [OpenStreetMap](https://www.openstreetmap.org/copyright) data, supplied by [Geofabrik](https://download.geofabrik.de/europe/united-kingdom/england/greater-london.html), under the [Open Database License 1.0](https://opendatacommons.org/licenses/odbl/1-0/). Copyright OpenStreetMap contributors. Coordinates are projected into local metres around Elizabeth Tower, with source attribution and projection parameters retained in the JSON. The app makes no live map requests.
@@ -55,7 +61,7 @@ python3 scripts/prepare-map.py dist/assets/london-map.json
 
 - [Clock Tower (Big Ben)](https://sketchfab.com/3d-models/9a1c691fac774bcca4e2ba565c4c9d9b) by ManySince910, CC BY 4.0. Scaled and material settings adjusted.
 - [Westminster Abbey, London, UK](https://sketchfab.com/3d-models/33175190a3ab441e908bd18796c3803d) by Brian Trepanier, CC BY 4.0. Geometry simplified, textures resized and compressed. Both models retrieved from the public Allen Institute Objaverse dataset.
-- [Sandstone Blocks 05](https://polyhaven.com/a/sandstone_blocks_05), [Kloofendal 48d Partly Cloudy Pure Sky](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky), and [Tree Small 02](https://polyhaven.com/a/tree_small_02), Poly Haven, CC0. The tree uses the asset's transparent preview image as a distant impostor. The visible sky uses the Kloofendal asset’s 8K tonemapped photograph, converted to WebP at 8K and 4K; the original 2K HDR remains the lighting source.
+- [Sandstone Blocks 05](https://polyhaven.com/a/sandstone_blocks_05), [Kloofendal 48d Partly Cloudy Pure Sky](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky), and [Tree Small 02](https://polyhaven.com/a/tree_small_02), Poly Haven, CC0. Tree Small 02 by Rico Cilliers is simplified and its separate leaf opacity map packed into the color texture; its transparent preview remains a loading fallback. The visible sky uses the Kloofendal asset’s 8K tonemapped photograph, converted to WebP at 8K and 4K; the original 2K HDR remains the lighting source.
 - [Brick Wall 11](https://polyhaven.com/a/brick_wall_11), [Grey Plaster 03](https://polyhaven.com/a/grey_plaster_03), [Asphalt 02](https://polyhaven.com/a/asphalt_02), [Roof Slates 02](https://polyhaven.com/a/roof_slates_02), and [Grass Ground](https://polyhaven.com/a/grass_ground), Poly Haven, CC0.
 - Three architectural façade textures generated with the built-in imagegen tool. Originals, browser filenames and complete prompts are documented in [art-assets/GENERATION.md](art-assets/GENERATION.md).
 - Three.js and its water normal texture: MIT license.

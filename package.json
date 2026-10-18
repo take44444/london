@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node serve.mjs",
     "build": "esbuild src/main.js --bundle --format=esm --minify --sourcemap --outfile=dist/scene.js",
-    "test": "node tests/facades.mjs && node tests/palace.mjs && node tests/victoria.mjs && node tests/browser.mjs"
+    "test": "node tests/facades.mjs && node tests/palace.mjs && node tests/victoria.mjs && node tests/vegetation.mjs && node tests/browser.mjs"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +19,8 @@
   },
   "private": true,
   "devDependencies": {
-    "@gltf-transform/cli": "^4.5.1"
+    "@gltf-transform/cli": "^4.5.1",
+    "meshoptimizer": "^1.2.0",
+    "sharp": "^0.35.5"
   }
 }
