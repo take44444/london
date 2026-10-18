@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildMapCity } from './map-city.js';
 import { buildPalace } from './palace.mjs';
 import {buildVictoriaTower,victoriaPose} from './victoria.mjs';
+import {buildAbbey,abbeyPose} from './abbey.mjs';
 import {createVegetation} from './vegetation.mjs';
 
 // All repeated architecture is instanced. Dimensions are in metres.
@@ -194,16 +195,11 @@ export function buildLondon(scene, textures, models={}, mapData=null, options={}
   victoria.flag.applyMatrix4(victoriaTransform);scene.add(victoria.flag);
   // Parliament Square and Westminster Abbey beyond the Palace.
   if(!mapData)box(-246,5,-57,58,.2,67,mats.grass);
-  if(models.abbey)addModel(models.abbey,-385,4,100,56,true);
-  else {
-    box(-240,17,108,39,25,91,mats.stone);roof(-240,30,108,39,18,91);
-    box(-240,19,77,69,28,20,mats.stone);roof(-240,34,77,69,12,20);
-    for(const x of [-252,-229])gothicTower(x,157,12,43,false);
-    for(let z=65;z<151;z+=6) {
-      windowEast(-220.4,13,z,2.5,12);
-      rod([-218,9,z],[-221,30,z],.5,mats.trim);pinnacle(-218,18,z,4);
-    }
-  }
+  const abbeyLocation=abbeyPose(mapData?.buildings.find(b=>b.t.name==='Westminster Abbey'));
+  const abbeyTransform=new THREE.Matrix4().makeRotationY(abbeyLocation.rotation).setPosition(abbeyLocation.position[0],0,abbeyLocation.position[1]);
+  localTransform=abbeyTransform;
+  const abbey=buildAbbey({instance,box,rod,mats,transform:abbeyTransform},textures);
+  localTransform=null;
   // Westminster Bridge: seven shallow arches, green iron and stone piers.
   function bridge() {
     localTransform=bridgeTransform;
@@ -338,7 +334,7 @@ export function buildLondon(scene, textures, models={}, mapData=null, options={}
   else {
   for(let row=0;row<14;row++)for(let col=0;col<18;col++) {
     const x=-330-row*48+(rand()-.5)*6,z=-650+col*76+(rand()-.5)*12;
-    if(models.abbey&&x>-600&&z> -40&&z<230)continue;
+    if(x>-415&&x<-220&&z>45&&z<150)continue;
     cityBuilding(x,z,25+rand()*14,43+rand()*19,17+rand()*32,mats.buildings[Math.floor(rand()*6)]);
   }
   for(let row=0;row<8;row++)for(let col=0;col<14;col++) {
@@ -452,7 +448,7 @@ export function buildLondon(scene, textures, models={}, mapData=null, options={}
     mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);instanceCount+=matrices.length;
   }
   return {
-    mats,glowMat,instanceCount,bakedMaterials,mapContext,palaceInfo,
+    mats,glowMat,instanceCount,bakedMaterials,mapContext,palaceInfo,abbeyBounds:abbey.bounds,abbeyInfo:{...abbey.info,...abbeyLocation},
     get victoriaInfo(){return {...victoria.info,...victoriaLocation};},
     get vegetationInfo(){return vegetation?.info??null;},
     prepareVegetation(renderer,environment){vegetation?.prepare(renderer,environment);},

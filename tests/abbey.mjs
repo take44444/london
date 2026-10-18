@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import {archPanel,flyingButtressGeometry,abbeyPhotoMatrix,buildAbbey} from '../src/abbey.mjs';
+const mat=new THREE.MeshStandardMaterial({side:THREE.DoubleSide}),p=archPanel(10,18,6,12,2),group=new THREE.Group();
+group.add(new THREE.Mesh(p.wall,mat),new THREE.Mesh(p.glass,mat));group.updateMatrixWorld();
+const ray=(x,y)=>new THREE.Raycaster(new THREE.Vector3(x,y,3),new THREE.Vector3(0,0,-1)).intersectObject(group,true);
+assert.ok(Math.abs(ray(0,6)[0].point.z-.025)<1e-5,'Glazing lies behind the masonry surface');
+assert.ok(Math.abs(ray(4,6)[0].point.z-.24)<1e-5,'The surround remains solid stone');
+assert.ok(Math.abs(ray(0,16)[0].point.z-.24)<1e-5,'Stone closes above the arch crown');
+const support=flyingButtressGeometry(),supportMesh=new THREE.Mesh(support,mat);supportMesh.updateMatrixWorld();
+assert.equal(new THREE.Raycaster(new THREE.Vector3(4,12,3),new THREE.Vector3(0,0,-1)).intersectObject(supportMesh).length,0,'Flying buttresses retain an open underside');
+assert.ok(new THREE.Raycaster(new THREE.Vector3(4,25,3),new THREE.Vector3(0,0,-1)).intersectObject(supportMesh).length>0,'The curved stone support is present');
+const projection=abbeyPhotoMatrix();
+for(const [x,y,u,v] of [[-10.5,42,520/1824,315/1368],[10.5,68,1147/1824,90/1368]]){const q=new THREE.Vector3(x,y,1).applyMatrix3(projection);assert.ok(Math.abs(q.x/q.z-u)<1e-9&&Math.abs(q.y/q.z-v)<1e-9,'Photo correspondences survive perspective projection');}
+const geometries=new Set();let parts=0;
+const instance=(g)=>{geometries.add(g);parts++;assert.ok(g.attributes.position.array.every(Number.isFinite));};
+const abbey=buildAbbey({instance,box:()=>{parts++;},rod:()=>{parts++;},mats:{stone:mat,roof:mat,gold:mat},transform:new THREE.Matrix4()},{});
+assert.ok(parts>500&&geometries.size<65,'Repeated bays share geometry within a bounded budget');
+assert.ok(abbey.info.windows>100&&abbey.info.buttresses>=30,'Both nave sides have detailed bays and supports');
+assert.equal(abbey.bounds.max.y,73);assert.equal(abbey.info.length,161.5);
+console.log('Abbey: recessed glazing, arch crowns, open flying buttresses, photo projection and shared geometry passed.');

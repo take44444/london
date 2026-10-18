@@ -24,7 +24,8 @@ try {
     await page.locator('#loading').waitFor({state:'hidden'});
     const state=()=>page.evaluate(()=>window.londonWorld.state);
     assert.equal((await state()).models.bigben,true);
-    assert.equal((await state()).models.abbey,true);
+    assert.equal((await state()).abbey.architectural,true);
+    assert.equal((await state()).abbey.photoFacade,true);
     assert.equal((await state()).models.tree,true);
     assert.equal((await state()).vegetation.atlasViews,24,'Distant trees use multiple viewing angles');
     assert.deepEqual((await state()).vegetation.atlasSize,[2048,768]);
@@ -113,6 +114,9 @@ try {
     const selected=await phone.locator('[data-view="victoria"]').boundingBox();
     assert.ok(selected.x>=18&&selected.x+selected.width<=373,'The sixth selected view scrolls into the mobile navigation');
     await phone.screenshot({path:new URL('../test-results/mobile-victoria.png',import.meta.url).pathname,timeout:120000});
+    await phone.locator('[data-view="abbey"]').tap();
+    assert.equal(await phone.evaluate(()=>window.londonWorld.state.view),'abbey');
+    await phone.screenshot({path:new URL('../test-results/mobile-abbey.png',import.meta.url).pathname,timeout:120000});
     assert.deepEqual(errors,[]);console.log('Mobile: layout, landmark navigation and touch orbit passed.');
     await phone.close();
   }
