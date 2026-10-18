@@ -16,7 +16,7 @@ Browser checks can also run separately from `london/` with `node tests/browser.m
 
 ## Controls
 
-- Left drag: orbit. Right drag: pan. Scroll: zoom.
+- Left drag: orbit. Right drag: pan across the mapped city (up to 1.75 kilometres from the centre). Scroll: zoom.
 - Touch: one finger to orbit; pinch and two fingers to zoom and pan.
 - Keyboard: arrow keys pan; plus and minus zoom.
 - Choose a landmark for a camera transition, or select a time of day.
@@ -39,6 +39,8 @@ Streets use locally hosted photographic concrete paving, normal and roughness ma
 The river uses a water-air Fresnel reflectance of approximately 0.02, filtered linear reflections, several scales of wind ripples and five boat-following wake sources. Reduced-motion preferences freeze the environmental motion.
 
 Nearby riverfront buildings have actual recessed window openings and projecting sills. Window bays fit each wall segment, and complete atlas rows fit each storey, avoiding sliced windows at corners and rooflines. The same openings control glass roughness and night illumination. Spatial groups switch to matching flat frontages at distance, with hysteresis to reduce switching while orbiting. Courtyard openings follow the inward-facing walls. These details remain interpretations of the mapped buildings, rather than surveyed architectural geometry.
+
+Mapped wall materials now choose glass, brick or stone before the fallback façade assignment. Glass buildings use a separate physical material with dielectric reflections, metal frames, darker floor bands and varying room backing. Nearby panes sit ten centimetres behind their mullions; distant walls preserve the same panel layout. Night occupancy is deterministic. Pane sizes, frames and interiors are estimates, and reflections use the shared sky environment rather than a local city capture. Explicit building envelopes with continuously mapped height sections are suppressed so the sections can form their silhouette, including One Blackfriars. The interpretation follows OpenStreetMap’s [Simple 3D Buildings scheme](https://wiki.openstreetmap.org/wiki/Simple_3D_Buildings); a roof-only section does not remove the underlying building.
 
 The Palace has separate pointed window openings, recessed glazing, stone mouldings and mullions on its river, west, end and courtyard walls. Steeper intersecting roofs carry metre-scale iron plate shading, gutters and dormers. The roof turrets and octagonal Central Tower have articulated lanterns, ribs and crocketed spires. This reconstruction uses Parliament's descriptions of the [Gothic design](https://www.parliament.uk/about/living-heritage/building/palace/architecture/palacestructure/new-gothic-vision/), [cast iron roof restoration](https://www.parliament.uk/mps-lords-and-offices/offices/commons/media-relations-group/press-releases/18-january-commons-and-lords-speakers-celebrate-conclusion-of-major-parliament-restoration-project/), and [Central Tower restoration](https://www.parliament.uk/globalassets/documents/commons-information-office/g12.pdf) as architectural references. Individual dimensions, roof arrangements and decorative details remain estimates; it is not a measured conservation model. Reference photographs are not redistributed with the app.
 

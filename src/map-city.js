@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {roadWidth,offsetStreet,weatherGround} from './streets.mjs';
+import {mappedSurface,emitCurtainWall,curtainMaterial,replacedEnvelopes} from './building-surfaces.mjs';
 import {emitFacade,facadeAtlases,windowMaskGLSL} from './facades.mjs';
 
 const TAU=Math.PI*2;
@@ -11,7 +12,7 @@ const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)
 export function buildMapCity(scene,data,textures,helpers){
   const {box,cyl,tree,lamp,mats,streetData}=helpers;
   const batches=new Map(),facadeBatches=new Map(),facadeUniforms=[],facadeLODs=[];
-  let recessedWindows=0,detailedFrontages=0;
+  let recessedWindows=0,detailedFrontages=0,glassBuildings=0,recessedGlassPanes=0,mappedMaterials=0,partEnvelopes=0;
   let buildingCount=0,wallCount=0,roadCount=0,treeCount=0,recordedHeights=0;
   const material=(color,options={})=>new THREE.MeshStandardMaterial({color,roughness:.92,side:THREE.DoubleSide,...options});
   const surface=(name,color,size)=>{
@@ -30,6 +31,7 @@ export function buildMapCity(scene,data,textures,helpers){
   const roof=surface('asphalt','#777b75',7);
   const slates=surface('roof','#9a9c93',3);
   const facades=[makeFacade(textures.facade,'#e8e4db',facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,'#e5dfd2',facadeAtlases.brick),makeFacade(textures.facade,'#d9dfdc',facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,'#d5c9bc',facadeAtlases.brick)];
+  const glazing=curtainMaterial();facadeUniforms.push(glazing.userData.night);
   function makeFacade(map,color,atlas){
     const m=material(color,{map,vertexColors:true,metalness:.02,envMapIntensity:.75});
     m.userData.atlas=atlas;
@@ -53,7 +55,7 @@ export function buildMapCity(scene,data,textures,helpers){
         vec2 windowCell = floor(vMapUv * vec2(4.,4.));
         windowCell.y=0.;
         ${atlas.rows.slice(1).map(y=>`windowCell.y+=step(${(1-y/atlas.height).toFixed(7)},atlasUv.y);`).join('\n')}
-        float windowLight = step(.69,fract(sin(dot(windowCell,vec2(12.9898,78.233))+dot(vColor.rgb,vec3(173.,79.,37.)))*43758.5453));
+        float windowLight = step(.69,fract(sin(dot(windowCell,vec2(12.9898,78.233))+dot(floor(vColor.rgb*64.),vec3(173.,79.,37.)))*43758.5453));
         float glassMask=1.-smoothstep(.12,.42,facadeLuma);
         totalEmissiveRadiance += vec3(1.,.58,.24)*uCityNight*windowMask*glassMask*windowLight;`);
     };
@@ -172,10 +174,12 @@ export function buildMapCity(scene,data,textures,helpers){
   const inRing=(x,z,ring)=>{let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a[1]>z)!==(b[1]>z)&&x<(b[0]-a[0])*(z-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;};
   const inAbbey=(x,z)=>abbeyFootprint.some(poly=>inRing(x,z,poly[0])&&!poly.slice(1).some(hole=>inRing(x,z,hole)));
   const insideLandmark=(x,z)=>(x>-210&&x< -30&&z>-100&&z<280)||inAbbey(x,z)||(x>195&&x<250&&z>-430&&z< -260);
+  const replaced=replacedEnvelopes(data.buildings);
   for(const building of data.buildings){
     const [cx,cz]=building.c,t=building.t;
     if(insideLandmark(cx,cz)||Math.hypot(cx,cz)>1950||t.building==='roof'||t.building==='construction')continue;
     if((/Elizabeth Tower|Palace of Westminster|London Eye/.test(t.name||'')||t.name==='Westminster Abbey'))continue;
+    if(replaced.has(building.id)){partEnvelopes++;continue;}
     const id=Number(building.id.slice(1)),h=hash(id),area=building.area;
     const hasHeight=Number.isFinite(parseFloat(t.height))||Number.isFinite(parseFloat(t['building:levels']));
     if(hasHeight)recordedHeights++;
@@ -186,9 +190,11 @@ export function buildMapCity(scene,data,textures,helpers){
     const pitched=building.roofRect&&building.p.length===1&&building.p[0].length===1&&height>9&&(['gabled','hipped','mansard','pyramidal'].includes(t['roof:shape'])||(!t['roof:shape']&&area<900&&height<28&&h>.3));
     const pitch=pitched?Math.min(numeric(t['roof:height'],3.2),height*.3):0;
     const mappedLevels=numeric(t['building:levels'],0);
-    const y0=5+min,y1=5+height-pitch,mat=facades[t.name==='County Hall'?0:Math.floor(h*facades.length)],color=[.8+hash(id+7)*.2,.8+hash(id+11)*.2,.78+hash(id+13)*.2];
+    const type=mappedSurface(t,t.name==='County Hall'?0:Math.floor(h*facades.length));
+    if(t['building:material'])mappedMaterials++;if(type==='glass')glassBuildings++;
+    const y0=5+min,y1=5+height-pitch,mat=type==='glass'?glazing:facades[type==='brick'?1:h>.5?0:2],color=[.8+hash(id+7)*.2,.8+hash(id+11)*.2,.78+hash(id+13)*.2];
     const riverDistance=data.riverPath?Math.min(...data.riverPath.map(p=>Math.hypot(cx-p[0],cz-p[1]))):Math.abs(cx);
-    const detail=Math.hypot(cx,cz)<800&&riverDistance<280&&height<90;
+    const detail=Math.hypot(cx,cz)<800&&(riverDistance<280||type==='glass')&&height<90;
     const fb=facadeBatch(mat,cx,cz);
     const floors=Math.max(1,Math.round(mappedLevels?mappedLevels-numeric(t['building:min_level'],min/3.55):((height-pitch-min)/3.55)));
     for(const polygon of building.p){
@@ -199,6 +205,13 @@ export function buildMapCity(scene,data,textures,helpers){
           const a=ring[i],c=ring[(i+1)%ring.length],len=Math.hypot(c[0]-a[0],c[1]-a[1]);
           if(len<.08)continue;
           const detailed=detail&&len>=2.5&&len<160;
+          if(type==='glass'){
+            const storeyHeight=THREE.MathUtils.clamp(height/(mappedLevels||Math.max(1,Math.round(height/3.55))),2.5,5);
+            const args={a,c,bottom:y0,top:y1,storeyHeight,color,seed:id,quad};
+            const panes=emitCurtainWall({...args,coarse:fb.coarse,fine:detailed?fb.fine:null});
+            if(detailed){recessedGlassPanes+=panes;fb.hasDetails=true;}else emitCurtainWall({...args,coarse:fb.fine});
+            wallCount++;continue;
+          }
           const count=emitFacade({a,c,bottom:y0,top:y1,floors,bays:Math.max(1,Math.round(len/3.25)),seed:id,atlas:mat.userData.atlas,color,coarse:fb.coarse,fine:detailed?fb.fine:null,quad});
           if(!detailed){
             // Keep identical flat geometry in fine tiles for walls too small to recess.
@@ -213,6 +226,7 @@ export function buildMapCity(scene,data,textures,helpers){
           }
         }
       }
+      if(type==='glass'&&min>0)horizontal([polygon],y0,roof);
       if(pitched){
         const rect=building.roofRect,center=rect.reduce((c,p)=>[c[0]+p[0]/4,c[1]+p[1]/4],[0,0]);
         const e0=[rect[1][0]-rect[0][0],rect[1][1]-rect[0][1]],e1=[rect[2][0]-rect[1][0],rect[2][1]-rect[1][1]],l0=Math.hypot(...e0),l1=Math.hypot(...e1);
@@ -274,5 +288,5 @@ export function buildMapCity(scene,data,textures,helpers){
     near.position.set(-b.x,-20,-b.z);far.position.copy(near.position);
     lod.addLevel(near,0);lod.addLevel(far,620,.12);scene.add(lod);facadeLODs.push(lod);
   }
-  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,kerbs,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
+  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,kerbs,glassBuildings,recessedGlassPanes,mappedMaterials,partEnvelopes,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
 }

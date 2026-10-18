@@ -40,6 +40,9 @@ try {
     assert.ok((await state()).map.recordedHeights>4000,'Recorded OSM heights are used');
     assert.ok((await state()).map.trees>5000,'Mapped tree locations are present');
     assert.ok((await state()).map.kerbs>5000,'The nearby street network includes raised kerbs');
+    assert.ok((await state()).map.materials.glassBuildings>70,'Mapped glass buildings use their own surface');
+    assert.ok((await state()).map.materials.recessedGlassPanes>100,'Nearby curtain walls include recessed panes');
+    assert.ok((await state()).map.materials.partEnvelopes>=2,'Complete building parts replace overlapping envelopes');
     assert.equal((await state()).map.source,'OpenStreetMap contributors');
     const facades=(await state()).map.facades;
     assert.ok(facades.recessedWindows>10000&&facades.recessedWindows<100000,'Riverfront windows have a bounded geometry budget');
