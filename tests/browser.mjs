@@ -22,6 +22,9 @@ try {
   const state=()=>page.evaluate(()=>window.londonWorld.state);
   assert.equal((await state()).models.bigben,true);
   assert.equal((await state()).models.abbey,true);
+  const palace=(await state()).palace;
+  assert.ok(palace.archedOpenings>200,'The Palace has physical arched openings');
+  assert.ok(palace.dormers>30&&palace.roofs>=7,'The Palace roofline includes dormers and intersecting roof pitches');
   assert.ok((await state()).map.buildings>10000,'The rendered city includes the London building extract');
   assert.ok((await state()).map.recordedHeights>4000,'Recorded OSM heights are used');
   assert.ok((await state()).map.trees>5000,'Mapped tree locations are present');

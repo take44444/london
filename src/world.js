@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildMapCity } from './map-city.js';
+import { buildPalace } from './palace.mjs';
 
 // All repeated architecture is instanced. Dimensions are in metres.
 export function buildLondon(scene, textures, models={}, mapData=null) {
@@ -175,56 +176,11 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
     for(const x of [-88,105]) {box(x,6.9,z, .3,1.2,.14,mats.iron);box(x,7.35,z,.15,.14,9,mats.iron);}
   }
   }
-  // Palace: a long riverside frontage with an articulated roofline.
-  const palace={x:-137,z:88,w:63,d:264,h:27};
+  // The Palace retains its mapped footprint, with physical Gothic openings and roofs.
   const palaceTransform=mapData?new THREE.Matrix4().set(1.6,0,0,99.2,0,1,0,0,0,0,1,0,0,0,0,1):null;
   localTransform=palaceTransform;
-  if(mapData){
-    // Long wings and transverse halls leave real open courtyards instead of a solid slab.
-    for(const [x,width] of [[-112.5,14],[-162,13],[-137,12]]){
-      box(x,17,palace.z,width,24,palace.d);roof(x,29,palace.z,width,6,palace.d);
-    }
-    for(const z of [-33,42,124,209]){
-      box(palace.x,17,z,palace.w,24,22);
-      instance(roofGeo,mats.roof,palace.x,29,z,22,6,palace.w,0,Math.PI/2);
-    }
-  }else {box(palace.x,17,palace.z,palace.w,24,palace.d);roof(palace.x,29,palace.z,55,10,264);}
-  if(textures.palaceFacade){
-    const map=textures.palaceFacade;map.repeat.set(palace.d/17,1);
-    const facing=material('#d8d2be',{map,bumpMap:map,bumpScale:.065,roughness:.9,metalness:.04});
-    for(const side of [-1,1]){
-      const facade=new THREE.Mesh(new THREE.PlaneGeometry(palace.d,24),facing);
-      facade.position.set(palace.x+side*(palace.w/2+.32),17,palace.z);facade.rotation.y=side*Math.PI/2;if(palaceTransform)facade.applyMatrix4(palaceTransform);facade.receiveShadow=true;scene.add(facade);
-    }
-  }
-  box(palace.x,7,palace.z,palace.w+3,4,palace.d+2,mats.weathered);
-  if(mapData){
-    for(const y of [17,29]){
-      for(const x of [-168.5,-105.5])box(x,y,palace.z,.65,.55,266,mats.trim);
-      for(const z of [-44,220])box(palace.x,y,z,63,.55,.65,mats.trim);
-    }
-  }else {
-    box(palace.x,29,palace.z,66,.9,266,mats.trim);
-    box(palace.x,17,palace.z,65,.55,266,mats.trim);
-  }
-  for(let z=-41;z<222;z+=4.25) {
-    for(const y of [10,20]) {windowEast(-105.35,y,z,2.4,6.8,rand()>.65);}
-    box(-104.75,17,z+2.1,.9,24,.6,mats.trim);
-    box(-104.4,24.8,z+2.1,1.4,10,1.1,mats.trim);
-    pinnacle(-104.4,30,z+2.1,3.2);
-    for(let i=0;i<2;i++)box(-104.6,29.6,z+i*2.1,.5,1.9,.6,mats.trim);
-  }
-  for(let z=-40;z<224;z+=32) {
-    box(-130,31,z,2,6,2,mats.weathered);cone(-130,35,z,2,3);
-    for(const x of [-164,-109]) {
-      box(x,26,z,6,31,6,mats.stone);roof(x,42,z,6,5,6);
-      for(const dx of [-2.6,2.6])for(const dz of [-2.6,2.6])pinnacle(x+dx,42,z+dz,3.3);
-    }
-  }
-  // Central octagonal tower and courtyards.
-  cyl(-137,35,90,7,28,mats.stone);cone(-137,56,90,8.2,17,mats.roof);cyl(-137,68,90,.3,8,mats.gold);
-  for(let a=0;a<8;a++){const t=a*Math.PI/4;pinnacle(-137+Math.sin(t)*6,46,90+Math.cos(t)*6,7);}
-  if(!mapData)for(let z=7;z<205;z+=67){box(-178,18,z,26,25,30,mats.stone);roof(-178,31,z,26,10,30);}
+  const centralTowerPosition=mapData?.buildings.find(b=>b.t.name==='Central Tower')?.c;
+  const palaceInfo=buildPalace({instance,box,rod,mats,transform:palaceTransform,centralTowerPosition},textures);
   localTransform=null;
   if(models.bigben)addModel(models.bigben,-121,5,-51,96);
   else gothicTower(-121,-51,14,85,true);
@@ -500,7 +456,7 @@ export function buildLondon(scene, textures, models={}, mapData=null) {
     mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);instanceCount+=matrices.length;
   }
   return {
-    mats,glowMat,instanceCount,bakedMaterials,mapContext,
+    mats,glowMat,instanceCount,bakedMaterials,mapContext,palaceInfo,
     updateWakes(target){for(let i=0;i<Math.min(target.length,boats.length);i++){const b=boats[i];target[i].set(b.group.position.x,b.group.position.z,b.group.rotation.y,b.length);}},
     update(time,dt) {
       const angle=time*.005;
