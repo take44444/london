@@ -1,0 +1,24 @@
+{
+  "name": "london",
+  "version": "1.0.0",
+  "description": "Interactive Three.js Westminster riverfront",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node serve.mjs",
+    "build": "esbuild src/main.js --bundle --format=esm --minify --sourcemap --outfile=dist/scene.js",
+    "test": "node tests/browser.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "playwright": "^1.64.1",
+    "three": "^0.180.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1"
+  }
+}

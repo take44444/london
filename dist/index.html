@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="theme-color" content="#e9e5da">
+  <meta name="description" content="Explore a living 3D London. Drift along the Thames, discover Westminster, and watch the city change from daylight to dusk.">
+  <title>London, in another light — An interactive world</title>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+</head>
+<body>
+  <main id="experience" aria-label="Interactive 3D London">
+    <canvas id="world" aria-label="3D London. Drag to orbit, scroll to zoom, right drag to pan. Arrow keys move the camera." tabindex="0"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="London world home"><span class="brand-icon">l<span>·</span></span><span>WORLDS <b>TO WANDER</b></span></a>
+      <div class="top-right"><span class="render-status"><i></i> A LIVING 3D WORLD</span><button id="help-button" class="icon-button" aria-label="Show controls" title="Controls">?</button><button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button></div>
+    </header>
+    <section class="intro" aria-label="London introduction">
+      <div class="eyebrow"><span class="small-line"></span> ENGLAND, UNITED KINGDOM</div>
+      <h1>London<span class="title-dot">.</span></h1>
+      <p>A familiar city. An entirely new perspective.</p>
+      <div class="coordinates">51°30′26.4″ N <span>00°07′39.6″ W</span></div>
+    </section>
+    <section class="light-controls glass" aria-label="Time of day">
+      <button data-light="day" aria-pressed="false"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><span>Daylight</span></button>
+      <button data-light="golden" class="active" aria-pressed="true"><svg viewBox="0 0 24 24"><path d="M3 17h18M5 21h14M7 17a5 5 0 0 1 10 0M12 3v3M4 8l2 2m14-2-2 2"/></svg><span>Golden hour</span></button>
+      <button data-light="night" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z"/></svg><span>Blue hour</span></button>
+    </section>
+    <div id="landmark-labels" aria-hidden="true"></div>
+    <aside class="location-card glass" id="location-card">
+      <div class="location-top"><span class="eyebrow">YOUR LITTLE CORNER OF LONDON</span><span class="location-index" id="location-index">01 / 04</span></div>
+      <div class="location-heading"><h2 id="location-title">Westminster</h2><span class="location-arrow">↗</span></div>
+      <p id="location-description">Where the city’s story meets the river. A little history, a little golden light.</p>
+      <div class="location-bottom"><span><i class="location-dot"></i><span id="location-subtitle">PALACE OF WESTMINSTER</span></span><button id="next-location" aria-label="Explore the next location">Next view <span>→</span></button></div>
+    </aside>
+    <nav class="view-nav glass" aria-label="Explore London landmarks">
+      <button data-view="westminster" class="active" aria-pressed="true"><span class="nav-number">01</span><span>Westminster</span></button>
+      <button data-view="bigben" aria-pressed="false"><span class="nav-number">02</span><span>Big Ben</span></button>
+      <button data-view="eye" aria-pressed="false"><span class="nav-number">03</span><span>London Eye</span></button>
+      <button data-view="river" aria-pressed="false"><span class="nav-number">04</span><span>Along the Thames</span></button>
+      <button data-view="abbey" aria-pressed="false"><span class="nav-number">05</span><span>The Abbey</span></button>
+    </nav>
+    <aside class="exploration-tools">
+      <div class="vertical-tools glass"><button id="zoom-in" aria-label="Zoom in" title="Zoom in">+</button><span></span><button id="zoom-out" aria-label="Zoom out" title="Zoom out">−</button></div>
+      <button id="reset" class="glass square-button" aria-label="Reset camera" title="Reset view"><svg viewBox="0 0 24 24"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6"/></svg></button>
+      <button id="auto-orbit" class="glass square-button" aria-label="Start a gentle orbit" aria-pressed="false" title="Auto orbit"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="4"/><path d="m10 3 5 9-5 9Z"/></svg></button>
+    </aside>
+    <button id="compass" class="compass glass" aria-label="Face north" title="Face north"><span>N</span><svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="23"/><path class="needle" d="m30 12 6 23-6-4-6 4Z"/><path class="needle-bottom" d="m30 48 6-13-6 4-6-4Z"/></svg></button>
+    <footer><div class="mouse-hint"><svg viewBox="0 0 20 25"><rect x="3" y="1" width="14" height="22" rx="7"/><path d="M10 1v8"/></svg><span><b>Drag</b> to explore <i>·</i> <b>Scroll</b> to get closer</span></div><div class="footer-right"><button id="sound" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="m11 4-6 5H2v6h3l6 5ZM16 8l6 8m0-8-6 8"/></svg><span>Sound off</span></button><span class="footer-divider"></span><span>TAKE A MOMENT. LOOK AROUND.</span></div></footer>
+    <div id="toast" role="status"></div>
+    <dialog id="help"><button id="close-help" class="close-dialog" aria-label="Close controls">×</button><span class="eyebrow">MAKE YOURSELF AT HOME</span><h2>A city at your fingertips.</h2><p>Take your time. There’s a different view around every corner.</p><div class="help-row"><b>Look around</b><span>Left-click + drag / one finger</span></div><div class="help-row"><b>Get closer</b><span>Scroll / pinch</span></div><div class="help-row"><b>Move across the city</b><span>Right-click + drag / two fingers</span></div><div class="help-row"><b>Move with the keyboard</b><span>Arrow keys · + / − to zoom</span></div><div class="help-row"><b>Discover a landmark</b><span>Click a label or choose a view</span></div><div class="credits">An architectural recreation of the Westminster riverfront, built with Three.js. <a href="https://sketchfab.com/3d-models/9a1c691fac774bcca4e2ba565c4c9d9b" target="_blank" rel="noreferrer">Clock Tower</a> by ManySince910 and <a href="https://sketchfab.com/3d-models/33175190a3ab441e908bd18796c3803d" target="_blank" rel="noreferrer">Westminster Abbey</a> by Brian Trepanier, CC BY 4.0, resized and optimized. Models sourced via Objaverse. Environment, stone and tree: <a href="https://polyhaven.com" target="_blank" rel="noreferrer">Poly Haven</a> (CC0). Water normals: Three.js (MIT).</div></dialog>
+    <div id="loading"><div class="loading-wordmark">London<span>.</span></div><div class="loading-line"><span></span></div><p>Finding a different perspective<span id="loading-progress">…</span></p></div>
+    <div id="error" hidden><h2>A little more graphics power, please.</h2><p>This world needs WebGL 2. Try a recent browser with hardware acceleration enabled.</p><button onclick="location.reload()">Try again</button></div>
+  </main>
+  <script type="module" src="./scene.js"></script>
+</body>
+</html>
