@@ -67,14 +67,15 @@ const loadTexture=(name,color=false)=>new Promise(resolve=>{
 const [stone,normal,roughness,waterNormals]=await Promise.all([
   loadTexture('stone-color.jpg',true),loadTexture('stone-normal.jpg'),loadTexture('stone-roughness.jpg'),loadTexture('waternormals.jpg'),
 ]);
-const surfaceEntries=await Promise.all(['brick','plaster','asphalt','roof'].map(async name=>{
+const surfaceEntries=await Promise.all(['brick','plaster','asphalt','roof','paving'].map(async name=>{
   const [color,normal,roughness]=await Promise.all([loadTexture(`${name}-color.jpg`,true),loadTexture(`${name}-normal.jpg`),loadTexture(`${name}-roughness.jpg`)]);
   return [name,{color,normal,roughness}];
 }));
-const [facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,mapData,unionFlag,abbeyPhoto]=await Promise.all([
+const [facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,mapData,unionFlag,abbeyPhoto,streetData]=await Promise.all([
   loadTexture('portland-facade-v1.jpg',true),loadTexture('stock-brick-facade-v1.jpg',true),loadTexture('westminster-facade-v1.jpg',true),loadTexture('grass-color.jpg',true),loadTexture('grass-normal.jpg'),loadTexture('grass-roughness.jpg'),
   fetch('./assets/london-map.json').then(r=>{if(!r.ok)throw Error('Map unavailable');return r.json();}).catch(error=>{console.warn(error.message);return null;}),
   loadTexture('union-flag.svg',true),loadTexture('abbey-west-photo.webp',true),
+  fetch('./assets/london-streets.json').then(r=>{if(!r.ok)throw Error('Street details unavailable');return r.json();}).catch(error=>{console.warn(error.message);return null;}),
 ]);
 const dracoLoader=new DRACOLoader(manager).setDecoderPath('./assets/draco/');
 const modelLoader=new GLTFLoader(manager);modelLoader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(dracoLoader);
@@ -86,7 +87,7 @@ const models=Object.fromEntries(await Promise.all(Object.entries(modelNames).map
 dracoLoader.dispose();
 const treePicture=await loadTexture('tree-billboard.png',true);
 models.treeImpostor={material:new THREE.MeshBasicMaterial({map:treePicture,alphaTest:.4,side:THREE.DoubleSide,color:'#ffffff'}),aspect:326/480};
-const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,unionFlag,abbeyPhoto,...Object.fromEntries(surfaceEntries)},models,mapData,{mobile});
+const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,unionFlag,abbeyPhoto,...Object.fromEntries(surfaceEntries)},models,mapData,{mobile,streetData});
 const river=createRiver(waterNormals,sun.position,renderer,!!mapData,mobile);
 const water=river.mesh;scene.add(water);
 const pmrem=new THREE.PMREMGenerator(renderer);
@@ -288,5 +289,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,kerbs:m.kerbs,walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };

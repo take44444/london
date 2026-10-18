@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {roadWidth,offsetStreet,weatherGround} from './streets.mjs';
 import {emitFacade,facadeAtlases,windowMaskGLSL} from './facades.mjs';
 
 const TAU=Math.PI*2;
@@ -8,7 +9,7 @@ const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)
 
 /** Render the bundled OSM extract in metres, preserving courtyard holes and street curves. */
 export function buildMapCity(scene,data,textures,helpers){
-  const {box,cyl,tree,lamp,mats}=helpers;
+  const {box,cyl,tree,lamp,mats,streetData}=helpers;
   const batches=new Map(),facadeBatches=new Map(),facadeUniforms=[],facadeLODs=[];
   let recessedWindows=0,detailedFrontages=0;
   let buildingCount=0,wallCount=0,roadCount=0,treeCount=0,recordedHeights=0;
@@ -18,9 +19,12 @@ export function buildMapCity(scene,data,textures,helpers){
     const m=material(color,{map:tex?.color,normalMap:tex?.normal,normalScale:new THREE.Vector2(.25,.25),roughnessMap:tex?.roughness});
     m.userData.tileSize=size;return m;
   };
-  const pavement=surface('plaster','#aaa99d',3);
-  const asphalt=surface('asphalt','#848780',5);
-  const land=surface('plaster','#b8b5a7',8);
+  const pavement=weatherGround(surface('paving','#deddd5',2.2));
+  const asphalt=weatherGround(surface('asphalt','#a1a3a2',5),true);
+  const land=weatherGround(surface('paving','#cccac1',2.2));
+  const kerb=weatherGround(surface('plaster','#c9c9c1',1.2));
+  const paint=material('#e1ded0',{roughness:.87});
+  let kerbs=0;
   const grass=material('#89967a',{map:textures.grass,normalMap:textures.grassNormal,normalScale:new THREE.Vector2(.4,.4),roughnessMap:textures.grassRoughness});grass.userData.tileSize=5;
   const masonry=surface('brick','#c9b79c',4),terracotta=material('#99634b');
   const roof=surface('asphalt','#777b75',7);
@@ -114,12 +118,8 @@ export function buildMapCity(scene,data,textures,helpers){
     if(points.length<2)return;
     let length=0;
     const cx=points[0][0],cz=points[0][1],b=batch(mat,cx,cz),tile=mat.userData.tileSize||4;
-    const edges=points.map((p,i)=>{
-      const prev=points[Math.max(0,i-1)],next=points[Math.min(points.length-1,i+1)];
-      const dx=next[0]-prev[0],dz=next[1]-prev[1],l=Math.hypot(dx,dz)||1;
-      const pointY=typeof y==='function'?y(p):y;
-      return [[p[0]-dz/l*width/2,pointY,p[1]+dx/l*width/2],[p[0]+dz/l*width/2,pointY,p[1]-dx/l*width/2]];
-    });
+    const left=offsetStreet(points,width/2),right=offsetStreet(points,-width/2);
+    const edges=points.map((p,i)=>{const pointY=typeof y==='function'?y(p):y;return [[left[i][0],pointY,left[i][1]],[right[i][0],pointY,right[i][1]]];});
     for(let i=1;i<points.length;i++){
       const next=length+Math.hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]);
       quad(b,[edges[i-1][0],edges[i][0],edges[i][1],edges[i-1][1]],[[0,length/tile],[0,next/tile],[width/tile,next/tile],[width/tile,length/tile]]);
@@ -127,23 +127,35 @@ export function buildMapCity(scene,data,textures,helpers){
     }
   }
   const majorRoads=[];
-  for(const road of data.roads){
+  if(streetData){
+    horizontal(streetData.pavement,5.30,pavement);
+    for(const ring of streetData.kerbRings)for(let i=0;i<ring.length;i++){
+      const a=ring[i],b=ring[(i+1)%ring.length],dx=b[0]-a[0],dz=b[1]-a[1],length=Math.hypot(dx,dz),count=Math.ceil(length/1.2);
+      if(length<.025)continue;
+      for(let j=0;j<count;j++){
+        const t=(j+.5)/count,x=a[0]+dx*t,z=a[1]+dz*t;
+        if(Math.hypot(x,z)>850)continue;
+        box(x,5.23,z,Math.max(.02,length/count-.012),.14,.2,kerb,-Math.atan2(dz,dx));kerbs++;
+      }
+    }
+  }
+  for(let roadId=0;roadId<data.roads.length;roadId++){
+    const road=data.roads[roadId];
     const t=road.t,kind=t.highway;
     if(road.p.length<2||Math.hypot(...road.p[Math.floor(road.p.length/2)])>2050)continue;
-    const pedestrian=['footway','path','pedestrian','cycleway'].includes(kind);
-    const width=numeric(t.width,pedestrian?(kind==='pedestrian'?6:2.5):numeric(t.lanes,kind==='primary'||kind==='trunk'?3:2)*3.1);
+    const {pedestrian,width}=roadWidth(t);
     const bridge=t.bridge==='yes';
     // Westminster's detailed green bridge is rendered separately.
     if(bridge&&t.name==='Westminster Bridge')continue;
     const elevation=bridge?11.1:5.16;
-    if(!pedestrian){ribbon(road.p,width+3.6,pavement,elevation-.03);majorRoads.push(road);}
-    ribbon(road.p,width,pedestrian?pavement:asphalt,elevation);roadCount++;
+    if(!pedestrian){if(!streetData||bridge)ribbon(road.p,width+3.6,pavement,elevation-.03);majorRoads.push(road);}
+    if(!pedestrian||!streetData||bridge)ribbon(road.p,width,pedestrian?pavement:asphalt,pedestrian?elevation+.14:elevation);roadCount++;
     if(!pedestrian&&!bridge&&['primary','secondary','tertiary','trunk'].includes(kind)&&Math.hypot(...road.p[0])<1250){
       let walked=0;
       for(let i=1;i<road.p.length;i++){
         const a=road.p[i-1],c=road.p[i],dx=c[0]-a[0],dz=c[1]-a[1],len=Math.hypot(dx,dz);
         if(len<.5)continue;
-        for(let d=8-walked;d<len;d+=8){const f=(d+1.5)/len;if(f>1)continue;box(a[0]+dx*f,elevation+.022,a[1]+dz*f,2.8,.025,.13,mats.trim,-Math.atan2(dz,dx));}
+        for(let d=8-walked;d<len;d+=8){const f=(d+1.5)/len;if(f>1)continue;box(a[0]+dx*f,elevation+.022,a[1]+dz*f,2.8,.014,.13,paint,-Math.atan2(dz,dx));}
         walked=(walked+len)%8;
       }
     }
@@ -262,5 +274,5 @@ export function buildMapCity(scene,data,textures,helpers){
     near.position.set(-b.x,-20,-b.z);far.position.copy(near.position);
     lod.addLevel(near,0);lod.addLevel(far,620,.12);scene.add(lod);facadeLODs.push(lod);
   }
-  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
+  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,kerbs,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
 }

@@ -6,13 +6,14 @@
   "scripts": {
     "dev": "node serve.mjs",
     "build": "esbuild src/main.js --bundle --format=esm --minify --sourcemap --outfile=dist/scene.js",
-    "test": "node tests/facades.mjs && node tests/palace.mjs && node tests/victoria.mjs && node tests/abbey.mjs && node tests/vegetation.mjs && node tests/browser.mjs"
+    "test": "node tests/facades.mjs && node tests/palace.mjs && node tests/victoria.mjs && node tests/abbey.mjs && node tests/streets.mjs && node tests/vegetation.mjs && node tests/browser.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "clipper-lib": "^6.4.2",
     "esbuild": "^0.28.2",
     "playwright": "^1.64.1",
     "three": "^0.180.0"

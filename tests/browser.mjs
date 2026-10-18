@@ -39,6 +39,7 @@ try {
     assert.ok((await state()).map.buildings>10000,'The rendered city includes the London building extract');
     assert.ok((await state()).map.recordedHeights>4000,'Recorded OSM heights are used');
     assert.ok((await state()).map.trees>5000,'Mapped tree locations are present');
+    assert.ok((await state()).map.kerbs>5000,'The nearby street network includes raised kerbs');
     assert.equal((await state()).map.source,'OpenStreetMap contributors');
     const facades=(await state()).map.facades;
     assert.ok(facades.recessedWindows>10000&&facades.recessedWindows<100000,'Riverfront windows have a bounded geometry budget');
