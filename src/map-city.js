@@ -154,6 +154,7 @@ export function buildMapCity(scene,data,textures,helpers){
   const insideLandmark=(x,z)=>(x>-210&&x< -30&&z>-100&&z<280)||inAbbey(x,z)||(x>195&&x<250&&z>-430&&z< -260);
   const replaced=replacedEnvelopes(data.buildings);
   for(const building of data.buildings){
+    if(helpers.excludedBuildings?.has(building.id))continue;
     const [cx,cz]=building.c,t=building.t;
     if(insideLandmark(cx,cz)||Math.hypot(cx,cz)>1950||t.building==='roof'||t.building==='construction')continue;
     if((/Elizabeth Tower|Palace of Westminster|London Eye/.test(t.name||'')||t.name==='Westminster Abbey'))continue;

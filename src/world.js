@@ -5,6 +5,7 @@ import { buildPalace } from './palace.mjs';
 import {buildVictoriaTower,victoriaPose} from './victoria.mjs';
 import {buildAbbey,abbeyPose} from './abbey.mjs';
 import {createVegetation} from './vegetation.mjs';
+import {buildCountyHall,countyHallIds} from './county-hall.mjs';
 
 // All repeated architecture is instanced. Dimensions are in metres.
 export function buildLondon(scene, textures, models={}, mapData=null, options={}) {
@@ -330,7 +331,9 @@ export function buildLondon(scene, textures, models={}, mapData=null, options={}
     for(let c=0;c<Math.floor(w/10);c++)box(x-w*.3+c*8,8+h,z+d*.22,1,5,2.5,mats.weathered);
     for(let k=1;k<levels;k+=2)box(x,6.5+k*4.4,z,w+.35,.2,d+.35,mats.trim);
   }
-  if(mapData)mapContext=buildMapCity(scene,mapData,textures,{box,cyl,tree,lamp,mats,streetData:options.streetData,hasRegion:!!models.region});
+  const countyHall=buildCountyHall(scene,mapData,textures);
+  if(mapData)mapContext=buildMapCity(scene,mapData,textures,{box,cyl,tree,lamp,mats,streetData:options.streetData,hasRegion:!!models.region,excludedBuildings:countyHall?countyHallIds:null});
+  if(countyHall&&mapContext)mapContext.nightUniforms.push(...countyHall.nightUniforms);
   else {
   for(let row=0;row<14;row++)for(let col=0;col<18;col++) {
     const x=-330-row*48+(rand()-.5)*6,z=-650+col*76+(rand()-.5)*12;
@@ -448,7 +451,7 @@ export function buildLondon(scene, textures, models={}, mapData=null, options={}
     mesh.castShadow=true;mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);instanceCount+=matrices.length;
   }
   return {
-    mats,glowMat,instanceCount,bakedMaterials,mapContext,palaceInfo,abbeyBounds:abbey.bounds,abbeyInfo:{...abbey.info,...abbeyLocation},
+    mats,glowMat,instanceCount,bakedMaterials,mapContext,palaceInfo,countyHallInfo:countyHall?.info??null,abbeyBounds:abbey.bounds,abbeyInfo:{...abbey.info,...abbeyLocation},
     get victoriaInfo(){return {...victoria.info,...victoriaLocation};},
     get vegetationInfo(){return vegetation?.info??null;},
     prepareVegetation(renderer,environment){vegetation?.prepare(renderer,environment);},

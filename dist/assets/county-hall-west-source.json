@@ -1,0 +1,10 @@
+{
+  "title": "County Hall, London (West Face - 01).jpg",
+  "author": "Doyle of London",
+  "source": "https://commons.wikimedia.org/wiki/File:County_Hall,_London_(West_Face_-_01).jpg",
+  "license": "CC BY-SA 4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "adapted_asset": "county-hall-west.webp",
+  "adaptation": "Resized to 3072 pixels wide, converted to WebP, and projectively mapped onto the river-facing wall. The adapted texture is available under CC BY-SA 4.0.",
+  "geometry": "Mapped OSM footprint and courtyard holes; interpreted roof, columns, dormers and roof lantern. Not a photogrammetric scan."
+}
