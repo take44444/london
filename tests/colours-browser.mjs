@@ -20,6 +20,7 @@ for(let i=0;i<uv.count;i++)uv.setX(i,uv.getX(i)+4);uv.needsUpdate=true;renderer.
 for(let i=0;i<uv.count;i++)uv.setX(i,uv.getX(i)-4);uv.needsUpdate=true;
 const grain=new THREE.DataTexture(new Uint8Array([90,90,90,255,150,150,150,255]),2,1);grain.colorSpace=THREE.SRGBColorSpace;grain.needsUpdate=true;mesh.material=colourRoofSurface(new THREE.MeshStandardMaterial({map:grain}),.1);
 const roofs=[];for(const rgb of [[.2,.07,.03],[.03,.07,.2]]){paint(rgb);roofs.push({dark:sample(.25,.5),light:sample(.75,.5)});}
+for(const atlas of Object.values(facadeAtlases)){mesh.material=createFacadeMaterial(texture,atlas,{continuous:true});paint([.5,.5,.5]);}
 window.result={results,roofs,nightA,nightB};renderer.dispose();
 `},bundle:true,format:'iife',write:false});
 const browser=await chromium.launch({headless:true,args:['--no-sandbox','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--disable-dev-shm-usage']});

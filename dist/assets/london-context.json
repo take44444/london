@@ -1,0 +1,34 @@
+{
+  "buildings": 116823,
+  "mappedHeights": 46488,
+  "domes": 22,
+  "pitchedRoofs": 3680,
+  "trees": 63806,
+  "triangles": 2587770,
+  "tiles": 317,
+  "landmarks": [],
+  "source": {
+    "name": "OpenStreetMap contributors",
+    "license": "ODbL-1.0",
+    "url": "https://www.openstreetmap.org/copyright",
+    "extract": "Geofabrik Greater London",
+    "extract_url": "https://download.geofabrik.de/europe/united-kingdom/england/greater-london.html",
+    "projection": {
+      "origin": [
+        -0.1246,
+        51.5007
+      ],
+      "origin_scene": [
+        -121,
+        -51
+      ],
+      "metres_per_degree": [
+        69297.26497446976,
+        111320
+      ]
+    },
+    "radius": 6000,
+    "simplification_metres": 0.35,
+    "suppressed_envelopes": 853
+  }
+}

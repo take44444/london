@@ -10,6 +10,7 @@ import { buildLondon } from './world.js';
 import { createRendering } from './rendering.js';
 import { createRiver } from './river.js';
 import {createVictoriaOcclusion} from './victoria.mjs';
+import {attachRegion} from './region.mjs';
 
 const canvas=document.querySelector('#world');
 const scene=new THREE.Scene();
@@ -79,7 +80,7 @@ const [facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,mapData,
 ]);
 const dracoLoader=new DRACOLoader(manager).setDecoderPath('./assets/draco/');
 const modelLoader=new GLTFLoader(manager);modelLoader.setMeshoptDecoder(MeshoptDecoder).setDRACOLoader(dracoLoader);
-const modelNames={bigben:'big-ben.glb',tree:'tree-canopy.glb'};
+const modelNames={bigben:'big-ben.glb',tree:'tree-canopy.glb',region:'london-context.gltf'};
 const models=Object.fromEntries(await Promise.all(Object.entries(modelNames).map(async([name,file])=>{
   try{return [name,(await modelLoader.loadAsync(`./assets/${file}`)).scene];}
   catch(error){console.warn(`Model unavailable: ${file}`,error.message);return [name,null];}
@@ -87,8 +88,10 @@ const models=Object.fromEntries(await Promise.all(Object.entries(modelNames).map
 dracoLoader.dispose();
 const treePicture=await loadTexture('tree-billboard.png',true);
 models.treeImpostor={material:new THREE.MeshBasicMaterial({map:treePicture,alphaTest:.4,side:THREE.DoubleSide,color:'#ffffff'}),aspect:326/480};
-const london=buildLondon(scene,{stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,unionFlag,abbeyPhoto,...Object.fromEntries(surfaceEntries)},models,mapData,{mobile,streetData});
-const river=createRiver(waterNormals,sun.position,renderer,!!mapData,mobile);
+const cityTextures={stone,normal,roughness,facade,brickFacade,palaceFacade,grass,grassNormal,grassRoughness,unionFlag,abbeyPhoto,...Object.fromEntries(surfaceEntries)};
+const london=buildLondon(scene,cityTextures,models,mapData,{mobile,streetData});
+const region=attachRegion(scene,models.region,cityTextures,models.treeImpostor.material,london.mapContext?.nightUniforms||[]);
+const river=createRiver(waterNormals,sun.position,renderer,!!mapData,mobile,!!region);
 const water=river.mesh;scene.add(water);
 const pmrem=new THREE.PMREMGenerator(renderer);
 let environment;
@@ -178,9 +181,9 @@ document.querySelector('#fullscreen').addEventListener('click',async()=>{
 document.addEventListener('fullscreenchange',()=>{document.querySelector('#fullscreen').setAttribute('aria-label',document.fullscreenElement?'Exit fullscreen':'Enter fullscreen');});
 
 const lighting={
-  day:{sun:'#fff1d3',sunPower:2.4,hemiPower:.95,fillPower:.2,sky:skyResolution?2:.8,env:.45,exposure:1,fog:'#aebdbd',density:.0012,water:'#636553',warm:.015,glow:.15,sunPos:[-180,360,210]},
-  golden:{sun:'#ffcf9a',sunPower:2.7,hemiPower:.75,fillPower:.22,sky:skyResolution?1.6:.65,env:.4,exposure:1.05,fog:'#a9adb1',density:.00085,water:'#68604b',warm:.08,glow:.5,sunPos:[-260,155,235]},
-  night:{sun:'#a0b4e8',sunPower:.15,hemiPower:.36,fillPower:.32,sky:skyResolution?.16:.07,env:.18,exposure:1.3,fog:'#1c2c46',density:.0009,water:'#243237',warm:1.5,glow:3,sunPos:[-250,250,180]},
+  day:{sun:'#fff1d3',sunPower:2.4,hemiPower:.95,fillPower:.2,sky:skyResolution?2:.8,env:.45,exposure:1,fog:'#aebdbd',density:.00042,water:'#636553',warm:.015,glow:.15,sunPos:[-180,360,210]},
+  golden:{sun:'#ffcf9a',sunPower:2.7,hemiPower:.75,fillPower:.22,sky:skyResolution?1.6:.65,env:.4,exposure:1.05,fog:'#a9adb1',density:.0005,water:'#68604b',warm:.08,glow:.5,sunPos:[-260,155,235]},
+  night:{sun:'#a0b4e8',sunPower:.15,hemiPower:.36,fillPower:.32,sky:skyResolution?.16:.07,env:.18,exposure:1.3,fog:'#1c2c46',density:.0006,water:'#243237',warm:1.5,glow:3,sunPos:[-250,250,180]},
 };
 function setLight(mode,instant=false){
   const l=lighting[mode];if(!l)return;lightMode=mode;renderNeeded=true;
@@ -287,5 +290,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,skyHorizon:skyDome?{...skyDome.userData.horizon,colour:scene.fog.color.toArray()}:null,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,skyHorizon:skyDome?{...skyDome.userData.horizon,colour:scene.fog.color.toArray()}:null,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},context:region?{buildings:region.buildings,mappedHeights:region.mappedHeights,domes:region.domes,pitchedRoofs:region.pitchedRoofs,trees:region.trees,meshes:region.meshes,radius:region.source.radius}:null,models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };

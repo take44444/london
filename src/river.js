@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 
 /** An opaque, turbid river with dielectric Fresnel reflection and small wind ripples. */
-export function createRiver(normals,sunPosition,renderer,hasMap,mobile){
+export function createRiver(normals,sunPosition,renderer,hasMap,mobile,hasRegion=false){
   const resolution=mobile?384:768;
-  const water=new Water(new THREE.PlaneGeometry(hasMap?6000:198,hasMap?6000:2800),{
+  const water=new Water(new THREE.PlaneGeometry(hasRegion?20000:hasMap?6000:198,hasRegion?20000:hasMap?6000:2800),{
     textureWidth:resolution,textureHeight:resolution,waterNormals:normals,
     sunDirection:sunPosition.clone().normalize(),sunColor:'#ffe4b0',waterColor:'#5e5d49',
     distortionScale:8.5,fog:true,

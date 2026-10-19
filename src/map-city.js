@@ -76,7 +76,7 @@ export function buildMapCity(scene,data,textures,helpers){
     }
   }
   horizontal(data.ground,5,land);
-  horizontal([[[[-6500,-6500],[6500,-6500],[6500,6500],[-6500,6500]],[[-2300,-2300],[-2300,2300],[2300,2300],[2300,-2300]]]],4.97,land);
+  if(!helpers.hasRegion)horizontal([[[[-6500,-6500],[6500,-6500],[6500,6500],[-6500,6500]],[[-2300,-2300],[-2300,2300],[2300,2300],[2300,-2300]]]],4.97,land);
   horizontal(data.riverside,5.07,pavement);
   for(const area of data.areas){
     if(area.t.leisure==='pitch')horizontal(area.p,5.025,grass);
