@@ -53,7 +53,7 @@ try {
     assert.ok(facades.recessedWindows>10000&&facades.recessedWindows<100000,'Riverfront windows have a bounded geometry budget');
     assert.ok(facades.lodGroups>0&&facades.nearGroups>0,'Nearby facade geometry is selected');
     assert.ok((await state()).triangles>100000,'The city geometry renders in addition to fullscreen effects');
-    assert.equal((await state()).rendering.antialias,'SMAA');
+    assert.match((await state()).rendering.antialias,/SMAA/);
     assert.equal((await state()).rendering.contactShading,true);
     assert.equal((await state()).rendering.shadows.cascades,3);
     assert.equal((await state()).rendering.shadows.mapSize,2048);

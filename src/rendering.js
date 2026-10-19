@@ -5,6 +5,15 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 
+/** Match color and depth storage; some mobile formats offer fewer sample counts. */
+function renderSamples(renderer,floatColor,mobile){
+  const gl=renderer.getContext(),limit=Math.min(4,renderer.capabilities.maxSamples);
+  const color=Array.from(gl.getInternalformatParameter(gl.RENDERBUFFER,floatColor?gl.RGBA16F:gl.RGBA8,gl.SAMPLES));
+  const depth=Array.from(gl.getInternalformatParameter(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,gl.SAMPLES));
+  const supported=color.filter(n=>n>1&&n<=limit&&depth.includes(n)).sort((a,b)=>a-b);
+  return supported.length?(mobile?supported[0]:supported.at(-1)):0;
+}
+
 /** Reuse the color pass depth so alpha-tested leaves keep their real silhouettes. */
 class SceneDepthAO extends GTAOPass {
   constructor(scene,camera,width,height,resolutionScale){
@@ -28,11 +37,15 @@ class SceneDepthAO extends GTAOPass {
 
 export function createRendering(renderer,scene,camera,mobile){
   const floatColor=renderer.extensions.has('EXT_color_buffer_float');
+  const samples=renderSamples(renderer,floatColor,mobile);
   const size=renderer.getSize(new THREE.Vector2());
   const target=new THREE.WebGLRenderTarget(size.x,size.y,{
     type:floatColor?THREE.HalfFloatType:THREE.UnsignedByteType,
     depthBuffer:true,
     depthTexture:new THREE.DepthTexture(size.x,size.y,THREE.UnsignedIntType),
+    // The canvas's antialias flag does not cover offscreen scene rendering.
+    // SMAA alone cannot integrate subpixel mullions and Gothic stonework.
+    samples,
   });
   const composer=new EffectComposer(renderer,target);
   const scenePass=new RenderPass(scene,camera);
@@ -53,6 +66,6 @@ export function createRendering(renderer,scene,camera,mobile){
     ready,
     render(dt){renderer.info.reset();composer.render(dt);},
     resize(width,height){composer.setSize(width,height);},
-    get info(){return {contactShading:ao.enabled,antialias:'SMAA',hdr:floatColor,width:composer.readBuffer.width,height:composer.readBuffer.height,aoWidth:ao.width,aoHeight:ao.height};},
+    get info(){return {contactShading:ao.enabled,antialias:samples?'MSAA + SMAA':'SMAA',samples,hdr:floatColor,width:composer.readBuffer.width,height:composer.readBuffer.height,aoWidth:ao.width,aoHeight:ao.height};},
   };
 }

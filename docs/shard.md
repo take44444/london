@@ -10,11 +10,14 @@ The source body's bounding box is registered against the OSM tower-part union (e
 
 The detailed model loads only when its view is selected. The original mapped skyline meshes are separately batched in the regional asset and remain in use beyond 900 m, with hysteresis. Lazy materials register with the existing cascaded shadows and inherit current night lighting. Initial Westminster loading does not fetch the model.
 
+Night illumination is assigned to the glazing's connected pane islands, keeping each surface consistently occupied or dark. The preparation runs once when the model loads and produces one scalar vertex attribute; no fragment hash cuts across a pane. Room occupancy remains an interpretation. `tests/shard.mjs` checks consistency on the actual model, and `tests/shard-lighting-browser.mjs` renders 32 panes to check that both triangles retain uniform lighting. [Offscreen multisampling](rendering.md) prevents the dense frames from producing broad moiré patterns at distance.
+
 ```sh
 node --max-old-space-size=6144 scripts/prepare-shard.mjs source.fbx dist/assets/shard.glb
 node --max-old-space-size=6144 scripts/prepare-region.mjs region-source.json dist/assets/london-context.gltf
 npm run build
 node tests/shard.mjs
+node tests/shard-lighting-browser.mjs
 node tests/sun-shadows.mjs
 node tests/region.mjs
 ```

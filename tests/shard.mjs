@@ -3,6 +3,8 @@ const bytes=await fs.readFile('dist/assets/shard.glb'),model=(await new GLTFLoad
 assert.equal(model.userData.source.license,'CC BY-SA 4.0');assert.equal(model.userData.source.textureMaps,false);assert.ok(bytes.byteLength<12000000);
 const scene=new THREE.Scene(),proxies=[0,1].map(i=>{const m=new THREE.Mesh(new THREE.BoxGeometry(2,3,4),new THREE.MeshStandardMaterial());m.position.set(shardPosition[0]+i,5,shardPosition[2]);scene.add(m);return m;}),before=proxies.map(o=>o.position.clone());
 const shard=attachShard(scene,model,proxies,shardPosition);scene.updateMatrixWorld(true);for(let i=0;i<2;i++)assert.ok(proxies[i].getWorldPosition(new THREE.Vector3()).distanceTo(before[i])<1e-8,'Reparented skyline geometry keeps its world position');
+assert.ok(shard.info.panes>16000,'Detailed glazing retains individual pane islands');
+let lit=0,dark=0;model.traverse(o=>{const room=o.geometry?.attributes.shardRoom;if(!room)return;const index=o.geometry.index;for(let i=0;i<index.count;i+=3){const values=[0,1,2].map(j=>room.getX(index.getX(i+j)));assert.ok(values.every(v=>v===values[0]),'Lighting is constant across each pane triangle');if(values[0])lit++;else dark++;}});assert.ok(lit>0&&dark>lit,'The tower has both occupied and dark glazing');
 const body=new THREE.Box3().setFromObject(model.getObjectByName('The_shard'));
 for(const [a,b]of [[body.min.x,shardMappedBounds[0]],[body.min.z,shardMappedBounds[1]],[body.max.x,shardMappedBounds[2]],[body.max.z,shardMappedBounds[3]]])assert.ok(Math.abs(a-b)<.7,'Source body agrees with the mapped footprint bounds');
 const full=new THREE.Box3().setFromObject(model);assert.ok(full.max.y>313&&full.max.y<315);assert.ok(shard.info.meshes<=20);assert.ok(shard.info.triangles>900000&&shard.info.triangles<1100000);
