@@ -1,0 +1,53 @@
+{
+  "geometry": "OSM mapped footprints; interpreted fa\u00e7ade details, balconies and rooftop structures. Not photogrammetry.",
+  "sources": [
+    {
+      "name": "Shell Centre fa\u00e7ade photograph",
+      "author": "Reading Tom",
+      "url": "https://commons.wikimedia.org/wiki/File:The_Shell_Centre_(8709496019).jpg",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0/",
+      "changes": "Cropped to a four-window, two-storey tile, resized and converted to WebP. Repeated as a texture."
+    },
+    {
+      "name": "One and Thirty Casson Square architectural description",
+      "url": "https://squireandpartners.com/architecture/residential/one-and-thirty-casson-square-southbank-place/",
+      "used_for": "Stone, glass and bronze grid, projecting balconies, top four glazed floors, storey counts."
+    },
+    {
+      "name": "Southbank Place complex height record",
+      "url": "https://www.skyscrapercenter.com/building/one-casson-square/27222",
+      "used_for": "One Casson Square height of 122.3 metres."
+    },
+    {
+      "name": "Two Southbank Place fa\u00e7ade engineering",
+      "url": "https://fmdc.co.uk/two-southbank-place/",
+      "used_for": "Unitised curtain wall and shadowbox spandrels."
+    },
+    {
+      "name": "Two Southbank Place height record",
+      "url": "https://awards-api.skyscrapercenter.com/building/two-southbank-place/27224",
+      "used_for": "80.7 metre height, 16 floors."
+    },
+    {
+      "name": "Four Casson Square height record",
+      "url": "https://www.skyscrapercenter.com/building/4-casson-square/27225",
+      "used_for": "100 metre height, 29 floors."
+    },
+    {
+      "name": "Casson Square bay-window architecture",
+      "url": "https://pateltaylor.co.uk/works/architecture/residential-and-mixed-use/shell-centre",
+      "used_for": "Portland stone, bronze accents and projecting oriel windows. Details remain interpretations."
+    },
+    {
+      "name": "One Southbank Place fa\u00e7ade manufacturer",
+      "url": "https://techrete.com/project/1-southbank-place/",
+      "used_for": "Precast panels and stepped massing; mapped parts preserve terrace heights."
+    },
+    {
+      "name": "Belvedere Gardens developer brochure",
+      "url": "https://www.southbank-place.com/propeller/uploads/2021/09/Belvedere-Gardens-SBP_Bro_67.pdf",
+      "used_for": "Modern stone, bronze and glazed fa\u00e7ades; interpreted screens."
+    }
+  ]
+}

@@ -37,5 +37,5 @@ export function createFacadeMaterial(map,atlas,{continuous=false}={}){
         float glassMask=1.-smoothstep(.12,.42,facadeLuma);
         totalEmissiveRadiance += vec3(1.,.58,.24)*uCityNight*windowMask*glassMask*windowLight;`);
     };
-    m.customProgramCacheKey=()=> 'london-mapped-colour-windows-v4-'+(atlas===facadeAtlases.brick?'brick':'stone')+'-'+continuous;return m;
+    m.customProgramCacheKey=()=> 'london-mapped-colour-windows-v5-'+JSON.stringify(atlas)+'-'+continuous;return m;
   }
