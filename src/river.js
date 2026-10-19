@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
+import {riverWaveGLSL,riverWaveInfo} from './river-waves.mjs';
 
 /** An opaque, turbid river with dielectric Fresnel reflection and small wind ripples. */
 export function createRiver(normals,sunPosition,renderer,hasMap,mobile,hasRegion=false){
@@ -23,23 +24,18 @@ export function createRiver(normals,sunPosition,renderer,hasMap,mobile,hasRegion
   const noise=`
     uniform float riverIllumination;
     uniform vec4 boatWakes[5];
+    float riverVariance;
     vec4 getNoise(vec2 uv){
-      mat2 turn=mat2(.866,-.5,.5,.866);
-      vec3 a=texture2D(normalSampler,uv*.045-vec2(.008,.03)*time).xyz*2.-1.;
-      vec3 b=texture2D(normalSampler,turn*uv*.13+vec2(.012,-.025)*time).xyz*2.-1.;
-      vec3 c=texture2D(normalSampler,uv*.31-vec2(.02,.035)*time).xyz*2.-1.;
-      vec2 slope=a.xy*.65+b.xy*.28+c.xy*.12;
-      return vec4(slope,1.,0.);
+      vec2 detail=texture2D(normalSampler,uv*.8-vec2(.012,.019)*time).xy*2.-1.;
+      return vec4(detail*.008,1.,0.);
     }
     vec3 riverNormal(vec3 noise){
       vec2 p=worldPosition.xz;
       float footprint=max(length(dFdx(p)),length(dFdy(p)));
-      float micro=1.-smoothstep(.15,.9,footprint);
-      vec2 wind=normalize(vec2(.37,.93));
-      vec2 crosswind=vec2(-wind.y,wind.x);
-      vec2 slope=noise.xy*.92;
-      slope+=wind*cos(dot(p,wind)*8.-time*2.1)*.026*micro;
-      slope+=crosswind*cos(dot(p,crosswind)*16.+time*1.4)*.012*micro;
+      float micro=1.-smoothstep(.025,.12,footprint);
+      vec2 slope=noise.xy*micro;
+      riverVariance=0.;
+      ${riverWaveGLSL()}
       for(int i=0;i<5;i++){
         vec4 boat=boatWakes[i];
         vec2 rel=p-boat.xy;
@@ -80,9 +76,15 @@ export function createRiver(normals,sunPosition,renderer,hasMap,mobile,hasRegion
   material.fragmentShader=material.fragmentShader
     .replace('normalize( noise.xzy * vec3( 1.5, 1.0, 1.5 ) )','riverNormal( noise.xyz )')
     .replace('float rf0 = 0.3;','float rf0 = 0.02037;')
+    .replace('float reflectance = rf0 + ( 1.0 - rf0 ) * pow( ( 1.0 - theta ), 5.0 );',`
+      float transmittedCos=sqrt(max(0.,1.-(1.-theta*theta)/(1.333*1.333)));
+      float rs=(theta-1.333*transmittedCos)/(theta+1.333*transmittedCos);
+      float rp=(1.333*theta-transmittedCos)/(1.333*theta+transmittedCos);
+      float reflectance=.5*(rs*rs+rp*rp);
+    `)
     .replace('vec3 reflectionSample = vec3( texture2D( mirrorSampler, mirrorCoord.xy / mirrorCoord.w + distortion ) );',`
       vec2 reflectionUv=mirrorCoord.xy/mirrorCoord.w+distortion;
-      vec2 blur=vec2(.0018,.00045)*(1.+min(distance/700.,1.));
+      vec2 blur=vec2(.0008,.0006)+vec2(.045,.12)*sqrt(riverVariance);
       vec3 reflectionSample=texture2D(mirrorSampler,reflectionUv).rgb*.4;
       reflectionSample+=texture2D(mirrorSampler,reflectionUv+blur).rgb*.18;
       reflectionSample+=texture2D(mirrorSampler,reflectionUv-blur).rgb*.18;
@@ -98,6 +100,6 @@ export function createRiver(normals,sunPosition,renderer,hasMap,mobile,hasRegion
   return {
     mesh:water,wakes,
     setIllumination(value){material.uniforms.riverIllumination.value=value;},
-    info:{reflectionResolution:resolution,fresnel:.02037,wakeSources:wakes.length},
+    info:{reflectionResolution:resolution,fresnel:.02037,wakeSources:wakes.length,waves:riverWaveInfo,dielectricIOR:1.333},
   };
 }
