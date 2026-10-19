@@ -36,3 +36,7 @@ for(const atlas of Object.values(facadeAtlases))for(const direction of [1,-1]){
   near.geometry.dispose();far.geometry.dispose();near.material.dispose();far.material.dispose();
 }
 console.log('Facade geometry: recessed glass, intact masonry, projecting sills and courtyard winding passed.');
+
+const wallUV=seed=>{const out=[];emitFacade({a:[0,0],c:[13,0],bottom:5,top:19,floors:4,bays:4,seed,atlas:facadeAtlases.stone,color:[1,1,1],coarse:out,quad:(target,p,uv)=>target.push(...uv)});return out;};
+const first=wallUV(0),other=wallUV(4);
+assert.ok(first.every((uv,i)=>Math.abs((other[i][0]-uv[0])-4)<1e-8&&other[i][1]===uv[1]),'Different building seeds keep the atlas layout while changing integer window cells');

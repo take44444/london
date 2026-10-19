@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node serve.mjs",
     "build": "esbuild src/main.js --bundle --format=esm --minify --sourcemap --outfile=dist/scene.js",
-    "test": "node tests/facades.mjs && node tests/building-surfaces.mjs && node tests/palace.mjs && node tests/victoria.mjs && node tests/abbey.mjs && node tests/streets.mjs && node tests/sun-shadows.mjs && node tests/vegetation.mjs && node tests/curtain-browser.mjs && node tests/shadows-browser.mjs && node tests/browser.mjs"
+    "test": "node tests/facades.mjs && node tests/building-surfaces.mjs && node tests/building-colours.mjs && node tests/palace.mjs && node tests/victoria.mjs && node tests/abbey.mjs && node tests/streets.mjs && node tests/sun-shadows.mjs && node tests/vegetation.mjs && node tests/curtain-browser.mjs && node tests/colours-browser.mjs && node tests/shadows-browser.mjs && node tests/browser.mjs"
   },
   "keywords": [],
   "author": "",

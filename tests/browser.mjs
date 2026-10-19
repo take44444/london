@@ -43,6 +43,8 @@ try {
     assert.ok((await state()).map.materials.glassBuildings>70,'Mapped glass buildings use their own surface');
     assert.ok((await state()).map.materials.recessedGlassPanes>100,'Nearby curtain walls include recessed panes');
     assert.ok((await state()).map.materials.partEnvelopes>=2,'Complete building parts replace overlapping envelopes');
+    assert.ok((await state()).map.materials.mappedWallColours>2000,'Mapped wall colours reach the rendered city');
+    assert.ok((await state()).map.materials.mappedRoofColours>2000,'Roofs use their mapped colours independently');
     assert.equal((await state()).map.source,'OpenStreetMap contributors');
     const facades=(await state()).map.facades;
     assert.ok(facades.recessedWindows>10000&&facades.recessedWindows<100000,'Riverfront windows have a bounded geometry budget');

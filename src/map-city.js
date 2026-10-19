@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import {roadWidth,offsetStreet,weatherGround} from './streets.mjs';
+import {buildingColours,colourRoofSurface} from './building-colours.mjs';
 import {mappedSurface,emitCurtainWall,curtainMaterial,replacedEnvelopes} from './building-surfaces.mjs';
-import {emitFacade,facadeAtlases,windowMaskGLSL} from './facades.mjs';
+import {createFacadeMaterial} from './facade-material.mjs';
+import {emitFacade,facadeAtlases} from './facades.mjs';
 
 const TAU=Math.PI*2;
 const signedArea=ring=>ring.reduce((sum,a,i)=>{const b=ring[(i+1)%ring.length];return sum+a[0]*b[1]-b[0]*a[1];},0)/2;
@@ -12,7 +14,7 @@ const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)
 export function buildMapCity(scene,data,textures,helpers){
   const {box,cyl,tree,lamp,mats,streetData}=helpers;
   const batches=new Map(),facadeBatches=new Map(),facadeUniforms=[],facadeLODs=[];
-  let recessedWindows=0,detailedFrontages=0,glassBuildings=0,recessedGlassPanes=0,mappedMaterials=0,partEnvelopes=0;
+  let recessedWindows=0,detailedFrontages=0,glassBuildings=0,recessedGlassPanes=0,mappedMaterials=0,partEnvelopes=0,mappedWallColours=0,mappedRoofColours=0;
   let buildingCount=0,wallCount=0,roadCount=0,treeCount=0,recordedHeights=0;
   const material=(color,options={})=>new THREE.MeshStandardMaterial({color,roughness:.92,side:THREE.DoubleSide,...options});
   const surface=(name,color,size)=>{
@@ -28,39 +30,11 @@ export function buildMapCity(scene,data,textures,helpers){
   let kerbs=0;
   const grass=material('#89967a',{map:textures.grass,normalMap:textures.grassNormal,normalScale:new THREE.Vector2(.4,.4),roughnessMap:textures.grassRoughness});grass.userData.tileSize=5;
   const masonry=surface('brick','#c9b79c',4),terracotta=material('#99634b');
-  const roof=surface('asphalt','#777b75',7);
-  const slates=surface('roof','#9a9c93',3);
-  const facades=[makeFacade(textures.facade,'#e8e4db',facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,'#e5dfd2',facadeAtlases.brick),makeFacade(textures.facade,'#d9dfdc',facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,'#d5c9bc',facadeAtlases.brick)];
+  const roof=colourRoofSurface(surface('asphalt','#ffffff',7),.10982);
+  const slates=colourRoofSurface(surface('roof','#ffffff',3),.25646);
+  const facades=[makeFacade(textures.facade,facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,facadeAtlases.brick),makeFacade(textures.facade,facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,facadeAtlases.brick)];
   const glazing=curtainMaterial();facadeUniforms.push(glazing.userData.night);
-  function makeFacade(map,color,atlas){
-    const m=material(color,{map,vertexColors:true,metalness:.02,envMapIntensity:.75});
-    m.userData.atlas=atlas;
-    const night={value:0};facadeUniforms.push(night);
-    m.onBeforeCompile=shader=>{
-      shader.uniforms.uCityNight=night;
-      shader.fragmentShader=`uniform float uCityNight;
-        float cityPane(vec2 p,vec4 bounds,vec2 edge){
-          vec2 low=smoothstep(bounds.xy-edge,bounds.xy+edge,p);
-          vec2 high=1.-smoothstep(bounds.zw-edge,bounds.zw+edge,p);
-          return low.x*low.y*high.x*high.y;
-        }\n`+shader.fragmentShader;
-      shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-        float facadeLuma = dot(texture2D(map,vMapUv).rgb,vec3(.2126,.7152,.0722));
-        vec2 atlasUv=fract(vMapUv);
-        vec2 atlasEdge=max(fwidth(vMapUv)*.6,vec2(.0005));
-        float windowMask=0.;
-        ${windowMaskGLSL(atlas)}
-        roughnessFactor = mix(.94,.25,windowMask);`);
-      shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
-        vec2 windowCell = floor(vMapUv * vec2(4.,4.));
-        windowCell.y=0.;
-        ${atlas.rows.slice(1).map(y=>`windowCell.y+=step(${(1-y/atlas.height).toFixed(7)},atlasUv.y);`).join('\n')}
-        float windowLight = step(.69,fract(sin(dot(windowCell,vec2(12.9898,78.233))+dot(floor(vColor.rgb*64.),vec3(173.,79.,37.)))*43758.5453));
-        float glassMask=1.-smoothstep(.12,.42,facadeLuma);
-        totalEmissiveRadiance += vec3(1.,.58,.24)*uCityNight*windowMask*glassMask*windowLight;`);
-    };
-    m.customProgramCacheKey=()=> 'london-recessed-windows-v2-'+(atlas===facadeAtlases.brick?'brick':'stone');return m;
-  }
+  function makeFacade(map,atlas){const m=createFacadeMaterial(map,atlas);facadeUniforms.push(m.userData.night);return m;}
   function batch(mat,cx=0,cz=0){
     const key=mat.uuid+':'+Math.floor(cx/280)+':'+Math.floor(cz/280);
     if(!batches.has(key))batches.set(key,{mat,p:[],n:[],uv:[],color:[],indices:[]});
@@ -87,14 +61,14 @@ export function buildMapCity(scene,data,textures,helpers){
     if((signedArea(p)<0)!==clockwise)p.reverse();
     return p;
   }
-  function horizontal(polygons,y,mat){
+  function horizontal(polygons,y,mat,color=[1,1,1]){
     for(const rings of polygons){
       const outer=cleaned(rings[0]);if(outer.length<3)continue;
       const holes=rings.slice(1).map(r=>cleaned(r,true)).filter(r=>r.length>2);
       const flat=[outer,...holes].flat(),cx=outer.reduce((s,p)=>s+p[0],0)/outer.length,cz=outer.reduce((s,p)=>s+p[1],0)/outer.length;
       const b=batch(mat,cx,cz),tile=mat.userData.tileSize||4;
       const tris=THREE.ShapeUtils.triangulateShape(outer.map(p=>new THREE.Vector2(...p)),holes.map(r=>r.map(p=>new THREE.Vector2(...p))));
-      for(const tri of tris){const p=tri.map(i=>flat[i]);triangle(b,[p[0],p[2],p[1]].map(a=>[a[0],y,a[1]]),[p[0],p[2],p[1]].map(a=>[a[0]/tile,a[1]/tile]));}
+      for(const tri of tris){const p=tri.map(i=>flat[i]);triangle(b,[p[0],p[2],p[1]].map(a=>[a[0],y,a[1]]),[p[0],p[2],p[1]].map(a=>[a[0]/tile,a[1]/tile]),color);}
     }
   }
   horizontal(data.ground,5,land);
@@ -192,7 +166,9 @@ export function buildMapCity(scene,data,textures,helpers){
     const mappedLevels=numeric(t['building:levels'],0);
     const type=mappedSurface(t,t.name==='County Hall'?0:Math.floor(h*facades.length));
     if(t['building:material'])mappedMaterials++;if(type==='glass')glassBuildings++;
-    const y0=5+min,y1=5+height-pitch,mat=type==='glass'?glazing:facades[type==='brick'?1:h>.5?0:2],color=[.8+hash(id+7)*.2,.8+hash(id+11)*.2,.78+hash(id+13)*.2];
+    const colours=buildingColours(t,type,id),color=colours.wall;
+    if(colours.wallMapped)mappedWallColours++;if(colours.roofMapped)mappedRoofColours++;
+    const y0=5+min,y1=5+height-pitch,mat=type==='glass'?glazing:facades[type==='brick'?1:h>.5?0:2];
     const riverDistance=data.riverPath?Math.min(...data.riverPath.map(p=>Math.hypot(cx-p[0],cz-p[1]))):Math.abs(cx);
     const detail=Math.hypot(cx,cz)<800&&(riverDistance<280||type==='glass')&&height<90;
     const fb=facadeBatch(mat,cx,cz);
@@ -226,7 +202,7 @@ export function buildMapCity(scene,data,textures,helpers){
           }
         }
       }
-      if(type==='glass'&&min>0)horizontal([polygon],y0,roof);
+      if(type==='glass'&&min>0)horizontal([polygon],y0,roof,colours.roof);
       if(pitched){
         const rect=building.roofRect,center=rect.reduce((c,p)=>[c[0]+p[0]/4,c[1]+p[1]/4],[0,0]);
         const e0=[rect[1][0]-rect[0][0],rect[1][1]-rect[0][1]],e1=[rect[2][0]-rect[1][0],rect[2][1]-rect[1][1]],l0=Math.hypot(...e0),l1=Math.hypot(...e1);
@@ -234,9 +210,9 @@ export function buildMapCity(scene,data,textures,helpers){
         const pos=(du,dv,y)=>[center[0]+u[0]*du+v[0]*dv,y,center[1]+u[1]*du+v[1]*dv];
         const a=pos(-long/2,-short/2,y1),c=pos(long/2,-short/2,y1),d=pos(long/2,short/2,y1),e=pos(-long/2,short/2,y1);
         const r0=pos(-Math.max(0,long/2-short*.55),0,y1+pitch),r1=pos(Math.max(0,long/2-short*.55),0,y1+pitch),rb=batch(slates,cx,cz);
-        const face=points=>{for(let i=1;i<points.length-1;i++)triangle(rb,[points[0],points[i],points[i+1]],[points[0],points[i],points[i+1]].map(p=>[p[0]/3,p[2]/3]));};
+        const face=points=>{for(let i=1;i<points.length-1;i++)triangle(rb,[points[0],points[i],points[i+1]],[points[0],points[i],points[i+1]].map(p=>[p[0]/3,p[2]/3]),colours.roof);};
         face([a,c,r1,r0]);face([c,d,r1]);face([d,e,r0,r1]);face([e,a,r0]);
-      }else horizontal([polygon],y1+.03,roof);
+      }else horizontal([polygon],y1+.03,roof,colours.roof);
     }
     // Individually varied rooftop plant and chimney stacks make the skyline less uniform.
     if(pitched&&Math.hypot(cx,cz)<1300){
@@ -288,5 +264,5 @@ export function buildMapCity(scene,data,textures,helpers){
     near.position.set(-b.x,-20,-b.z);far.position.copy(near.position);
     lod.addLevel(near,0);lod.addLevel(far,620,.12);scene.add(lod);facadeLODs.push(lod);
   }
-  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,kerbs,glassBuildings,recessedGlassPanes,mappedMaterials,partEnvelopes,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
+  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,kerbs,glassBuildings,recessedGlassPanes,mappedMaterials,partEnvelopes,mappedWallColours,mappedRoofColours,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
 }

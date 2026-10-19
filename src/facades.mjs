@@ -14,7 +14,9 @@ export function emitFacade({a,c,bottom,top,floors,bays,seed,atlas,color,coarse,f
   if(length<.08||top<=bottom)return 0;
   const tx=dx/length,tz=dz/length,nx=tz,nz=-tx;
   const bayWidth=length/bays,floorHeight=(top-bottom)/floors;
-  const firstColumn=((seed%4)+4)%4;
+  // Integer texture repeats retain the photographed layout while giving each
+  // building a night-occupancy seed independent of its wall paint.
+  const firstColumn=((seed%4)+4)%4+4*((seed%251+251)%251);
   const rows=atlas.windows.length;
   const point=(s,y,depth=0)=>[a[0]+tx*s-nx*depth,y,a[1]+tz*s-nz*depth];
   let windows=0;
