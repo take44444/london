@@ -1,0 +1,28 @@
+{
+  "author": "AccuCities",
+  "license": "CC BY-SA 4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+  "url": "https://accucities.com/samples-links/",
+  "license_statement": "https://accucities.com/new-creative-commons-licences-for-accucities-samples/",
+  "source_file": "AccuCities-FBX-sample-3D Model-of-London-Level-3-Shard-Level-4-TQ3280.fbx",
+  "source_units_per_metre": 100,
+  "source_anchor_metres": [
+    905.7467675781251,
+    0,
+    887.5348840332032
+  ],
+  "components": [
+    "Stair",
+    "Ground",
+    "Frame",
+    "Glass",
+    "Floor_siling",
+    "Floor_siling_2",
+    "The_shard"
+  ],
+  "beforeTriangles": 1056697,
+  "triangles": 981008,
+  "simplification_error": 0.0001,
+  "textureMaps": false,
+  "notes": "Detailed geometry subset; source materials retained as named placeholders. No photographic maps are included in this source archive."
+}

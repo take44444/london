@@ -26,9 +26,9 @@ export function attachRegion(scene,model,textures,treeMaterial,nightUniforms){
   const treeNight={value:0};nightUniforms.push(treeNight);
   materials.tree.onBeforeCompile=shader=>{shader.uniforms.uRegionTreeNight=treeNight;shader.fragmentShader='uniform float uRegionTreeNight;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=mix(1.,.12,clamp(uRegionTreeNight/1.5,0.,1.));');};
   materials.tree.customProgramCacheKey=()=> 'regional-tree-day-night-v1';
-  const disposed=new Set();let meshes=0;
-  model.traverse(object=>{if(!object.isMesh)return;const old=object.material,key=old.name;if(!materials[key])throw Error(`Unknown regional material ${key}`);object.material=materials[key];object.castShadow=!['land','grass','road','pavement','tree'].includes(key);object.receiveShadow=key!=='tree';disposed.add(old);meshes++;});
+  const disposed=new Set(),shardProxies=[];let meshes=0;
+  model.traverse(object=>{if(!object.isMesh)return;if(object.userData.feature==='shard')shardProxies.push(object);const old=object.material,key=old.name;if(!materials[key])throw Error(`Unknown regional material ${key}`);object.material=materials[key];object.castShadow=!['land','grass','road','pavement','tree'].includes(key);object.receiveShadow=key!=='tree';disposed.add(old);meshes++;});
   for(const old of disposed)old.dispose();
   model.name='Greater London context';scene.add(model);
-  return {...model.userData,meshes,materials};
+  return {...model.userData,meshes,materials,shardProxies};
 }

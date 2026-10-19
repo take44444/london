@@ -10,7 +10,7 @@ export function createSunShadows(scene,camera,sun,mobile=false){
   });
   csm.fade=true;csm.updateFrustums();
   const configured=new Set();
-  scene.traverse(object=>{
+  function prepareObject(root){root.traverse(object=>{
     if(!object.isMesh)return;
     for(const material of Array.isArray(object.material)?object.material:[object.material]){
       if(!material?.isMeshStandardMaterial||configured.has(material))continue;
@@ -20,7 +20,8 @@ export function createSunShadows(scene,camera,sun,mobile=false){
       material.customProgramCacheKey=()=>`${cacheKey}:sun-cascades-${cascades}`;
       material.needsUpdate=true;configured.add(material);
     }
-  });
+  });}
+  prepareObject(scene);
   function configureBias(){
     for(const light of csm.lights){const width=light.shadow.camera.right-light.shadow.camera.left;light.shadow.normalBias=Math.max(.025,width/mapSize*.35);light.shadow.radius=1;}
   }
@@ -42,6 +43,7 @@ export function createSunShadows(scene,camera,sun,mobile=false){
   }
   return {
     update,
+    prepareObject,
     get direction(){return towardSun;},
     resize(){csm.updateFrustums();configureBias();lastDirection.set(Infinity,Infinity,Infinity);},
     get info(){return {cascades,mapSize,range,materials:configured.size,updates,direction:towardSun.toArray(),positions:csm.lights.map(l=>l.position.toArray()),texelSizes:csm.lights.map(l=>(l.shadow.camera.right-l.shadow.camera.left)/mapSize)};},

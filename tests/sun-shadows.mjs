@@ -13,6 +13,7 @@ for(const mobile of [false,true]){
  assert.equal(before.cascades,mobile?2:3);assert.ok(before.texelSizes[0]<before.texelSizes.at(-1),'Nearby surfaces receive finer shadow resolution');
  const shader={uniforms:{}};material.onBeforeCompile(shader);assert.equal(shader.uniforms.kept.value,42,'Existing material extensions survive CSM setup');assert.equal(shader.uniforms.CSM_cascades.value.length,before.cascades);
  assert.ok(material.customProgramCacheKey().startsWith('existing-facade:'));
+ const added=new THREE.MeshStandardMaterial();added.onBeforeCompile=s=>{s.uniforms.late={value:9};};const addedMesh=new THREE.Mesh(new THREE.BoxGeometry(),added);scene.add(addedMesh);rig.prepareObject(addedMesh);rig.prepareObject(addedMesh);assert.equal(rig.info.materials,before.materials+1,'Late model materials register exactly once');const lateShader={uniforms:{}};added.onBeforeCompile(lateShader);assert.equal(lateShader.uniforms.late.value,9);assert.equal(lateShader.uniforms.CSM_cascades.value.length,before.cascades);
  camera.position.x+=1000;camera.position.z-=800;camera.lookAt(920,35,-700);assert.equal(rig.update(),true);
  assert.ok(Math.hypot(...rig.info.positions[0].map((v,i)=>v-before.positions[0][i]))>1000,'Shadow coverage follows exploration beyond Westminster');
  assert.ok(new THREE.Vector3(...rig.info.direction).distanceTo(new THREE.Vector3().subVectors(sun.position,sun.target.position).normalize())<1e-10,'Shadow and water directions can use the same sunlight vector');

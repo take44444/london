@@ -11,6 +11,8 @@ import { createRendering } from './rendering.js';
 import { createRiver } from './river.js';
 import {createVictoriaOcclusion} from './victoria.mjs';
 import {attachRegion} from './region.mjs';
+import {attachShard} from './shard.mjs';
+import {shardPosition} from './shard-pose.mjs';
 
 const canvas=document.querySelector('#world');
 const scene=new THREE.Scene();
@@ -24,6 +26,7 @@ const views={
   river:{position:[90,29,380],target:[80,26,-180],title:'Life along the Thames.',description:'Drift down to the water. Watch the boats pass and the city find its own reflection.',subtitle:'RIVER THAMES · WESTMINSTER BRIDGE'},
   abbey:{position:[-500,75,-35],target:[-340,29,95],title:'Written in stone.',description:'Discover the Abbey’s twin towers, Gothic windows and flying buttresses, recreated in stone.',subtitle:'WESTMINSTER ABBEY · WEST FRONT'},
   victoria:{position:[-270,50,350],target:[-173.75,54,213.23],title:'Stone, rising skyward.',description:'Look up through tiers of Gothic windows, carved stone and the lanterns of Victoria Tower.',subtitle:'VICTORIA TOWER · SOVEREIGN’S ENTRANCE'},
+  shard:{position:[2865,185,-100],target:[2520.93,145,-459.745],title:'A city of glass.',description:'Look up through the fractured glass silhouette, then turn toward the rooftops of London Bridge.',subtitle:'THE SHARD · LONDON BRIDGE'},
 };
 let renderer;
 try {
@@ -44,7 +47,7 @@ controls.target.fromArray(views.westminster.target);
 controls.enableDamping=true;controls.dampingFactor=.065;
 controls.maxPolarAngle=Math.PI*.49;
 controls.minDistance=24;controls.maxDistance=1050;
-controls.minTargetRadius=0;controls.maxTargetRadius=1750;
+controls.minTargetRadius=0;controls.maxTargetRadius=3000;
 controls.zoomSpeed=.7;controls.rotateSpeed=.42;controls.panSpeed=.6;
 controls.autoRotateSpeed=.24;
 controls.keyPanSpeed=22;
@@ -135,6 +138,17 @@ for(const label of labels) {
   button.addEventListener('click',()=>setView(label.id));document.querySelector('#landmark-labels').append(button);label.element=button;
 }
 
+let shard=null,shardPromise=null;
+function ensureShard(){
+ if(shard)return Promise.resolve(shard);if(shardPromise)return shardPromise;
+ document.querySelector('[data-view="shard"]')?.setAttribute('aria-busy','true');toast('The Shard is coming into focus…');
+ shardPromise=modelLoader.loadAsync('./assets/shard.glb').then(gltf=>{
+  shard=attachShard(scene,gltf.scene,region?.shardProxies||[],shardPosition);sunShadows.prepareObject(shard.lod);
+  for(const uniform of shard.nightUniforms){uniform.value=london.mats.warmglass.emissiveIntensity;london.mapContext?.nightUniforms.push(uniform);}
+  renderer.shadowMap.needsUpdate=true;renderNeeded=true;return shard;
+ }).catch(error=>{console.warn('Shard detail unavailable:',error.message);shardPromise=null;if(activeView==='shard')toast('Explore the London Bridge skyline while this view loads.');return null;}).finally(()=>document.querySelector('[data-view="shard"]')?.setAttribute('aria-busy','false'));return shardPromise;
+}
+
 let activeView='westminster',flight=null,lightMode='golden',lightFlight=null;
 const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
 controls.enableDamping=!reducedMotion;
@@ -142,7 +156,7 @@ let renderNeeded=true;
 controls.addEventListener('change',()=>{renderNeeded=true;});
 function setView(id,instant=false) {
   const view=views[id];if(!view)return;
-  activeView=id;
+  activeView=id;if(id==='shard')ensureShard();
   renderNeeded=true;
   document.querySelector('#experience').classList.toggle('focused-view',id!=='westminster');
   controls.autoRotate=false;document.querySelector('#auto-orbit').setAttribute('aria-pressed','false');
@@ -157,6 +171,7 @@ function setView(id,instant=false) {
   if(innerWidth<700&&id==='westminster'){endPos.set(260,180,560);}
   if(innerWidth<700&&id==='abbey'){endPos.set(-680,150,-160);}
   if(innerWidth<700&&id==='victoria'){endPos.set(-305,85,405);}
+  if(innerWidth<700&&id==='shard'){endPos.set(2970,210,70);}
   if(instant||reducedMotion){camera.position.copy(endPos);controls.target.fromArray(view.target);controls.update();flight=null;}
   else flight={start:performance.now(),from:camera.position.clone(),to:endPos,fromTarget:controls.target.clone(),toTarget:new THREE.Vector3(...view.target)};
 }
@@ -274,7 +289,7 @@ function animate(){
       const x=(temp.x*.5+.5)*innerWidth,y=(-temp.y*.5+.5)*innerHeight;
       const nearIntro=x<340&&y<345;
       const nearCard=x<395&&y>innerHeight-380;
-      const visible=temp.z<1&&temp.z>-1&&x>20&&x<innerWidth-75&&y>160&&y<innerHeight-100&&!nearIntro&&!nearCard&&!(label.id!=='victoria'&&victoriaOccludes(camera.position,label.position));
+      const visible=camera.position.distanceTo(label.position)<1200&&temp.z<1&&temp.z>-1&&x>20&&x<innerWidth-75&&y>160&&y<innerHeight-100&&!nearIntro&&!nearCard&&!(label.id!=='victoria'&&victoriaOccludes(camera.position,label.position));
       label.element.style.opacity=visible?'1':'0';label.element.style.pointerEvents=visible?'auto':'none';
       label.element.style.left=`${x}px`;label.element.style.top=`${y}px`;
     }
@@ -291,5 +306,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,skyHorizon:skyDome?{...skyDome.userData.horizon,colour:scene.fog.color.toArray()}:null,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},context:region?{buildings:region.buildings,mappedHeights:region.mappedHeights,domes:region.domes,pitchedRoofs:region.pitchedRoofs,trees:region.trees,meshes:region.meshes,radius:region.source.radius}:null,models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,southbank:london.southbankInfo,countyHall:london.countyHallInfo,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,skyHorizon:skyDome?{...skyDome.userData.horizon,colour:scene.fog.color.toArray()}:null,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},context:region?{buildings:region.buildings,mappedHeights:region.mappedHeights,domes:region.domes,pitchedRoofs:region.pitchedRoofs,trees:region.trees,meshes:region.meshes,radius:region.source.radius}:null,models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,shard:shard?{...shard.info,detailed:shard.detailed}:null,southbank:london.southbankInfo,countyHall:london.countyHallInfo,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };

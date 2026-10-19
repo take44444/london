@@ -14,7 +14,7 @@ class SceneDepthAO extends GTAOPass {
     this.blendIntensity=.48;
     this.updateGtaoMaterial({radius:3.2,thickness:4,distanceExponent:1.5,distanceFallOff:1,scale:1,samples:12,screenSpaceRadius:false});
     this.updatePdMaterial({radius:4,samples:8,rings:2,depthPhi:2,normalPhi:3});
-    this.setSceneClipBox(new THREE.Box3(new THREE.Vector3(-2300,4.5,-2300),new THREE.Vector3(2300,300,2300)));
+    this.setSceneClipBox(new THREE.Box3(new THREE.Vector3(-6500,4.5,-6500),new THREE.Vector3(6500,400,6500)));
   }
   setSize(width,height){
     const scale=this.resolutionScale??1;

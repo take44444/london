@@ -86,7 +86,7 @@ try {
       if(id==='abbey')await page.screenshot({path:new URL('../test-results/abbey.png',import.meta.url).pathname,timeout:120000});
       if(id==='victoria'){
         assert.ok((await state()).vegetation.detailInstances>0,'The nearby park includes real tree geometry');
-        assert.equal(await page.locator('#location-index').textContent(),'06 / 06');
+        assert.equal(await page.locator('#location-index').textContent(),'06 / 07');
         await page.screenshot({path:new URL('../test-results/victoria.png',import.meta.url).pathname,timeout:120000});
       }
       console.log('View passed:',id);
