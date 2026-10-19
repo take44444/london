@@ -50,6 +50,9 @@ try {
     assert.ok((await state()).triangles>100000,'The city geometry renders in addition to fullscreen effects');
     assert.equal((await state()).rendering.antialias,'SMAA');
     assert.equal((await state()).rendering.contactShading,true);
+    assert.equal((await state()).rendering.shadows.cascades,3);
+    assert.equal((await state()).rendering.shadows.mapSize,2048);
+    assert.deepEqual((await state()).rendering.water.sunDirection,(await state()).rendering.shadows.direction);
     assert.equal((await state()).rendering.skyResolution,8192);
     await page.setViewportSize({width:1100,height:700});
     await page.waitForFunction(()=>window.londonWorld.state.rendering.width===1100&&window.londonWorld.state.rendering.height===700);
@@ -99,6 +102,8 @@ try {
     phone.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
     await phone.goto(origin);await phone.waitForFunction(()=>window.londonWorld?.state.ready,null,{timeout:120000});await phone.locator('#loading').waitFor({state:'hidden'});
     assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.skyResolution),4096);
+    assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.shadows.cascades),2);
+    assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.shadows.mapSize),1024);
     assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.width),390);
     assert.deepEqual(await phone.evaluate(()=>window.londonWorld.state.vegetation.atlasSize),[1024,384]);
     assert.ok(await phone.evaluate(()=>window.londonWorld.state.vegetation.detailInstances<=8),'Mobile tree detail stays within budget');

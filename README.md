@@ -12,7 +12,7 @@ npm run dev
 
 Open http://localhost:5173. To rebuild after editing `london/src/`, run `npm run build`. Dependencies are installed in `london/`; on a new checkout, first run `npm --prefix london install`.
 
-Browser checks can also run separately from `london/` with `node tests/browser.mjs desktop`, `node tests/browser.mjs mobile`, and `node tests/browser.mjs motion`. This keeps each browser check independently resumable in environments with command time limits.
+Browser checks can also run separately from `london/` with `node tests/browser.mjs desktop`, `node tests/browser.mjs mobile`, and `node tests/browser.mjs motion`. This keeps each browser check independently resumable in environments with command time limits. Run these modes sequentially with software WebGL; simultaneous full-city renderers compete for the same resources.
 
 ## Controls
 
@@ -31,6 +31,8 @@ The surrounding city now uses real OpenStreetMap outlines, courtyard holes, curv
 ## Rendering
 
 The color scene renders into a linear HDR buffer. Contact shading uses the same depth texture, preserving cutout leaves and avoiding an additional full-city normal pass. A single ACES display transform and SMAA edge smoothing finish the image. Render targets resize with the viewport.
+
+Sun shadows follow the camera with three cascades on desktop and two on mobile. Coverage extends to a view depth of 1.6 kilometres, with finer sampling nearby, texel-snapped light positions and blended transitions between cascades. Existing façade, leaf-alpha and wind shaders remain active. Static views reuse their shadow maps; camera or lighting changes refresh them. Vegetation and traffic retain the existing animation update cadence. Sunlight on the water uses the same direction as the shadow lights. This adds rendering cost compared with the former single fixed map; mobile uses two 1K maps instead of three 2K maps. CPU checks cover movement and resizing, and a rendered pixel check verifies a cast shadow both centrally and 1.5 kilometres away.
 
 The visible sky uses a locally hosted 8K photograph on desktop and 4K on smaller displays. It is drawn directly on a sky dome so the browser does not allocate six additional high-resolution cube faces. The separate HDR environment still supplies lighting and material reflections.
 

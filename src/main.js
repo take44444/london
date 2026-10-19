@@ -1,3 +1,4 @@
+import {createSunShadows} from './sun-shadows.mjs';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
@@ -51,10 +52,8 @@ controls.update();
 const hemi=new THREE.HemisphereLight('#e0ebee','#776747',2.05);scene.add(hemi);
 const sun=new THREE.DirectionalLight('#ffe2a3',3.8);
 sun.position.set(-240,220,240);sun.target.position.set(-60,0,20);
-sun.castShadow=true;sun.shadow.mapSize.set(mobile?1024:2048,mobile?1024:2048);
-Object.assign(sun.shadow.camera,{left:-370,right:370,top:410,bottom:-410,near:10,far:1000});
-sun.shadow.bias=-.0003;sun.shadow.normalBias=.4;sun.shadow.blurSamples=8;
-scene.add(sun,sun.target);
+sun.castShadow=false;
+// The directional source drives camera-following shadow lights after assets load.
 const fill=new THREE.DirectionalLight('#b8d3e5',.4);fill.position.set(300,180,-160);scene.add(fill);
 
 let loaded=0;
@@ -119,6 +118,7 @@ try{
   }
 }catch{console.warn('Using the HDR sky background.');}
 london.prepareVegetation(renderer,environment);
+const sunShadows=createSunShadows(scene,camera,sun,mobile);
 const rendering=createRendering(renderer,scene,camera,mobile);
 await rendering.ready;
 
@@ -246,7 +246,7 @@ function animate(){
     scene.fog.color.copy(f.fog).lerp(new THREE.Color(l.fog),e);scene.fog.density=lerp(f.density,l.density);
     water.material.uniforms.waterColor.value.copy(f.water).lerp(new THREE.Color(l.water),e);
     river.setIllumination(THREE.MathUtils.lerp(.1,.9,Math.min(hemi.intensity/.95,1)));
-    water.material.uniforms.sunColor.value.copy(sun.color).multiplyScalar(Math.min(sun.intensity/2.7,1));water.material.uniforms.sunDirection.value.copy(sun.position).normalize();
+    water.material.uniforms.sunColor.value.copy(sun.color).multiplyScalar(Math.min(sun.intensity/2.7,1));water.material.uniforms.sunDirection.value.copy(sun.position).sub(sun.target.position).normalize();
     london.mats.warmglass.emissiveIntensity=lerp(f.warm,l.warm);london.glowMat.emissiveIntensity=lerp(f.glow,l.glow);
     if(models.treeImpostor)models.treeImpostor.material.color.setScalar(THREE.MathUtils.lerp(1,.22,Math.min(l.warm/1.5,1)));
     for(const m of london.bakedMaterials)m.color.setScalar(THREE.MathUtils.lerp(1,.2,Math.min(l.warm/1.5,1)));
@@ -263,6 +263,8 @@ function animate(){
   london.updateWakes(river.wakes);
   if(!reducedMotion)water.material.uniforms.time.value+=dt;
   if(!reducedMotion&&elapsed-lastShadowUpdate>.12){renderer.shadowMap.needsUpdate=true;lastShadowUpdate=elapsed;}
+  if(sunShadows.update())renderer.shadowMap.needsUpdate=true;
+  water.material.uniforms.sunDirection.value.copy(sunShadows.direction);
   rendering.render(dt);
   renderNeeded=false;
   {
@@ -279,7 +281,7 @@ function animate(){
     document.querySelector('#compass svg').style.transform=`rotate(${-THREE.MathUtils.radToDeg(controls.getAzimuthalAngle())}deg)`;
   }
 }
-window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);rendering.resize(innerWidth,innerHeight);renderNeeded=true;});
+window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();sunShadows.resize();renderer.setSize(innerWidth,innerHeight);rendering.resize(innerWidth,innerHeight);renderNeeded=true;});
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();toast('Graphics paused. Restoring the world…');});
 canvas.addEventListener('webglcontextrestored',()=>location.reload());
 setView('westminster',true);
@@ -289,5 +291,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };
