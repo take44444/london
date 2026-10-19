@@ -59,6 +59,7 @@ try {
     assert.equal((await state()).rendering.shadows.mapSize,2048);
     assert.deepEqual((await state()).rendering.water.sunDirection,(await state()).rendering.shadows.direction);
     assert.equal((await state()).rendering.skyResolution,8192);
+    assert.ok((await state()).rendering.skyHorizon.endElevation>(await state()).rendering.skyHorizon.startElevation,'Photographic sky blends through a finite horizon band');
     await page.setViewportSize({width:1100,height:700});
     await page.waitForFunction(()=>window.londonWorld.state.rendering.width===1100&&window.londonWorld.state.rendering.height===700);
     await page.setViewportSize({width:1280,height:800});
@@ -107,6 +108,7 @@ try {
     phone.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
     await phone.goto(origin);await phone.waitForFunction(()=>window.londonWorld?.state.ready,null,{timeout:120000});await phone.locator('#loading').waitFor({state:'hidden'});
     assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.skyResolution),4096);
+    assert.ok(await phone.evaluate(()=>window.londonWorld.state.rendering.skyHorizon.endElevation>0),'Mobile sky includes the horizon transition');
     assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.shadows.cascades),2);
     assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.shadows.mapSize),1024);
     assert.equal(await phone.evaluate(()=>window.londonWorld.state.rendering.width),390);

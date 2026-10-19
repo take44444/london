@@ -1,3 +1,4 @@
+import {createSkyDome} from './sky.mjs';
 import {createSunShadows} from './sun-shadows.mjs';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -107,12 +108,7 @@ try{
   const sky=await loadTexture(`sky-${skySize===8192?'8k':'4k'}.webp`,true);
   if(sky){
     const oldBackground=scene.background;
-    const geometry=new THREE.SphereGeometry(6000,64,32),uv=geometry.attributes.uv;
-    for(let i=0;i<uv.count;i++)uv.setX(i,1-uv.getX(i));
-    sky.wrapS=THREE.RepeatWrapping;sky.wrapT=THREE.ClampToEdgeWrapping;
-    skyDome=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({map:sky,side:THREE.BackSide,depthWrite:false,depthTest:false,fog:false}));
-    skyDome.rotation.y=.45;skyDome.renderOrder=-10000;skyDome.frustumCulled=false;
-    skyDome.onBeforeRender=(renderer,scene,camera)=>{skyDome.position.copy(camera.position);skyDome.updateMatrixWorld();};
+    skyDome=createSkyDome(sky,scene.fog);
     scene.add(skyDome);scene.background=null;skyResolution=sky.image.width;
     if(oldBackground?.isTexture&&oldBackground!==environment)oldBackground.dispose();
   }
@@ -291,5 +287,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,skyHorizon:skyDome?{...skyDome.userData.horizon,colour:scene.fog.color.toArray()}:null,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };
