@@ -1,0 +1,64 @@
+{
+  "mode": "night",
+  "panorama": [
+    1024,
+    512
+  ],
+  "cubeResolution": 256,
+  "sceneSourceSha256": "197087707ef102446ca67c041e0e35512e2fb9aa67b3ea89da397266108935ee",
+  "files": [
+    {
+      "file": "shard-night-45.hdr",
+      "sha256": "e9dddc6c1ed334bbab1002a91138ea1d757eaa5ec12932ba00e2e56c9e3d8717",
+      "bytes": 1513888,
+      "position": [
+        2520.93,
+        45,
+        -459.745
+      ]
+    },
+    {
+      "file": "shard-night-230.hdr",
+      "sha256": "7a04be116e9bcca806748ba74853bea6475d2a1b78ee4fe53c1e7d340999a3b1",
+      "bytes": 1410386,
+      "position": [
+        2520.93,
+        230,
+        -459.745
+      ]
+    },
+    {
+      "file": "shard-night-45-mobile.hdr",
+      "sha256": "331fd6c2364c723d3d3ae12b881609414d5f37165c44de3f348585908ca3fcc6",
+      "bytes": 404847,
+      "position": [
+        2520.93,
+        45,
+        -459.745
+      ],
+      "panorama": [
+        512,
+        256
+      ],
+      "downsampledInLinearRadiance": true
+    },
+    {
+      "file": "shard-night-230-mobile.hdr",
+      "sha256": "7565b007e745595d21f256eff891fe32b77cdb5afa64fd3699436a4b11ea4f43",
+      "bytes": 381369,
+      "position": [
+        2520.93,
+        230,
+        -459.745
+      ],
+      "panorama": [
+        512,
+        256
+      ],
+      "downsampledInLinearRadiance": true
+    }
+  ],
+  "notes": "Rendered locally from the app scene with the Shard absent. River uses a static rough surface and shadows are omitted from this distant reflection capture. HDR radiance retained; no display tone mapping baked in.",
+  "license": "CC BY-SA 4.0",
+  "credits": "Same city geometry, facade and sky credits as the app controls dialog."
+}

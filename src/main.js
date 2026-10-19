@@ -13,6 +13,7 @@ import {createVictoriaOcclusion} from './victoria.mjs';
 import {attachRegion} from './region.mjs';
 import {attachShard} from './shard.mjs';
 import {shardPosition} from './shard-pose.mjs';
+import {loadShardReflections,reflectionModes} from './shard-reflections.mjs';
 
 const canvas=document.querySelector('#world');
 const scene=new THREE.Scene();
@@ -138,13 +139,16 @@ for(const label of labels) {
   button.addEventListener('click',()=>setView(label.id));document.querySelector('#landmark-labels').append(button);label.element=button;
 }
 
-let shard=null,shardPromise=null;
+let shard=null,shardPromise=null,shardReflections=null,shardReflectionStatus='unloaded';
+const reflectionWeights=new THREE.Vector3(0,1,0);
 function ensureShard(){
  if(shard)return Promise.resolve(shard);if(shardPromise)return shardPromise;
  document.querySelector('[data-view="shard"]')?.setAttribute('aria-busy','true');toast('The Shard is coming into focus…');
  shardPromise=modelLoader.loadAsync('./assets/shard.glb').then(gltf=>{
   shard=attachShard(scene,gltf.scene,region?.shardProxies||[],shardPosition);sunShadows.prepareObject(shard.lod);
   for(const uniform of shard.nightUniforms){uniform.value=london.mats.warmglass.emissiveIntensity;london.mapContext?.nightUniforms.push(uniform);}
+  shardReflectionStatus='loading';
+  loadShardReflections(renderer,gltf.scene,reflectionWeights,mobile).then(rig=>{shardReflections=rig;shardReflectionStatus=rig?'ready':'unsupported';renderer.shadowMap.needsUpdate=true;renderNeeded=true;}).catch(error=>{shardReflectionStatus='unavailable';console.warn('Local glass reflections unavailable:',error.message);});
   renderer.shadowMap.needsUpdate=true;renderNeeded=true;return shard;
  }).catch(error=>{console.warn('Shard detail unavailable:',error.message);shardPromise=null;if(activeView==='shard')toast('Explore the London Bridge skyline while this view loads.');return null;}).finally(()=>document.querySelector('[data-view="shard"]')?.setAttribute('aria-busy','false'));return shardPromise;
 }
@@ -205,7 +209,8 @@ function setLight(mode,instant=false){
   const l=lighting[mode];if(!l)return;lightMode=mode;renderNeeded=true;
   document.body.classList.toggle('night',mode==='night');
   document.querySelectorAll('[data-light]').forEach(b=>{const active=b.dataset.light===mode;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
-  lightFlight={sunColor:sun.color.clone(),sunPower:sun.intensity,hemiPower:hemi.intensity,fillPower:fill.intensity,sky:scene.backgroundIntensity??1,env:scene.environmentIntensity??1,exposure:renderer.toneMappingExposure,fog:scene.fog.color.clone(),density:scene.fog.density,water:water.material.uniforms.waterColor.value.clone(),warm:london.mats.warmglass.emissiveIntensity,glow:london.glowMat.emissiveIntensity,sunPos:sun.position.clone(),start:performance.now(),target:l};
+  const targetReflectionWeights=new THREE.Vector3();targetReflectionWeights.setComponent(reflectionModes.indexOf(mode),1);
+  lightFlight={reflectionWeights:reflectionWeights.clone(),targetReflectionWeights,sunColor:sun.color.clone(),sunPower:sun.intensity,hemiPower:hemi.intensity,fillPower:fill.intensity,sky:scene.backgroundIntensity??1,env:scene.environmentIntensity??1,exposure:renderer.toneMappingExposure,fog:scene.fog.color.clone(),density:scene.fog.density,water:water.material.uniforms.waterColor.value.clone(),warm:london.mats.warmglass.emissiveIntensity,glow:london.glowMat.emissiveIntensity,sunPos:sun.position.clone(),start:performance.now(),target:l};
   if(instant||reducedMotion)lightFlight.start-=1800;
 }
 document.querySelectorAll('[data-light]').forEach(b=>b.addEventListener('click',()=>setLight(b.dataset.light)));
@@ -253,6 +258,7 @@ function animate(){
   if(lightFlight){
     renderer.shadowMap.needsUpdate=true;
     const f=lightFlight,l=f.target,t=Math.min((now-f.start)/1800,1),e=t*t*(3-2*t),lerp=(a,b)=>THREE.MathUtils.lerp(a,b,e);
+    reflectionWeights.lerpVectors(f.reflectionWeights,f.targetReflectionWeights,e);
     sun.color.copy(f.sunColor).lerp(new THREE.Color(l.sun),e);sun.intensity=lerp(f.sunPower,l.sunPower);
     sun.position.lerpVectors(f.sunPos,new THREE.Vector3(...l.sunPos),e);
     hemi.intensity=lerp(f.hemiPower,l.hemiPower);fill.intensity=lerp(f.fillPower,l.fillPower);
@@ -306,5 +312,5 @@ requestAnimationFrame(()=>{document.querySelector('#loading').classList.add('don
 
 // Exposed read-only snapshot for browser QA and performance diagnostics.
 window.londonWorld={
-  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,skyHorizon:skyDome?{...skyDome.userData.horizon,colour:scene.fog.color.toArray()}:null,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},context:region?{buildings:region.buildings,mappedHeights:region.mappedHeights,domes:region.domes,pitchedRoofs:region.pitchedRoofs,trees:region.trees,meshes:region.meshes,radius:region.source.radius}:null,models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,shard:shard?{...shard.info,detailed:shard.detailed}:null,southbank:london.southbankInfo,countyHall:london.countyHallInfo,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
+  get state(){const m=london.mapContext;return {ready:true,view:activeView,lighting:lightMode,autoOrbit:controls.autoRotate,sound:audioEnabled,camera:camera.position.toArray(),target:controls.target.toArray(),rendering:{...rendering.info,shadows:sunShadows.info,skyResolution,skyHorizon:skyDome?{...skyDome.userData.horizon,colour:scene.fog.color.toArray()}:null,water:{...river.info,time:water.material.uniforms.time.value,sunDirection:water.material.uniforms.sunDirection.value.toArray(),wakes:river.wakes.map(v=>v.toArray())}},context:region?{buildings:region.buildings,mappedHeights:region.mappedHeights,domes:region.domes,pitchedRoofs:region.pitchedRoofs,trees:region.trees,meshes:region.meshes,radius:region.source.radius}:null,models:Object.fromEntries(Object.entries(models).map(([key,value])=>[key,!!value])),map:m?{buildings:m.buildings,recordedHeights:m.recordedHeights,roads:m.roads,roofs:{shapes:m.roofShapes,mapped:m.mappedRoofs,gables:m.roofGables,supportedFixtures:m.supportedFixtures},trees:m.trees,kerbs:m.kerbs,materials:{glassBuildings:m.glassBuildings,recessedGlassPanes:m.recessedGlassPanes,mappedMaterials:m.mappedMaterials,partEnvelopes:m.partEnvelopes,mappedWallColours:m.mappedWallColours,mappedRoofColours:m.mappedRoofColours},walls:m.walls,facades:{recessedWindows:m.recessedWindows,detailedFrontages:m.detailedFrontages,lodGroups:m.facadeLODs.length,nearGroups:m.facadeLODs.filter(l=>l.getCurrentLevel()===0).length},source:m.source.name}:null,shard:shard?{...shard.info,detailed:shard.detailed,reflectionStatus:shardReflectionStatus,reflections:shardReflections?.info||null}:null,southbank:london.southbankInfo,countyHall:london.countyHallInfo,abbeyBounds:london.abbeyBounds,abbey:london.abbeyInfo,palace:london.palaceInfo,victoria:london.victoriaInfo,vegetation:london.vegetationInfo,instances:london.instanceCount,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles};},
 };

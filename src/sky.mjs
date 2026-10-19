@@ -20,6 +20,6 @@ export function createSkyDome(texture,fog){
   material.customProgramCacheKey=()=> 'photographic-sky-horizon-v1';
   const dome=new THREE.Mesh(geometry,material);dome.userData.horizon=horizon;
   dome.rotation.y=.45;dome.renderOrder=-10000;dome.frustumCulled=false;
-  dome.onBeforeRender=(renderer,scene,camera)=>{dome.position.copy(camera.position);dome.updateMatrixWorld();};
+  dome.onBeforeRender=(renderer,scene,camera)=>{camera.getWorldPosition(dome.position);dome.updateMatrixWorld();};
   return dome;
 }
