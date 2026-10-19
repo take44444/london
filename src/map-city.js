@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {roadWidth,offsetStreet,weatherGround} from './streets.mjs';
+import {planRoof,emitRoof,roofAttachment,roofBuildingHeight,roofSurfaceRange} from './city-roofs.mjs';
 import {buildingColours,colourRoofSurface} from './building-colours.mjs';
 import {mappedSurface,emitCurtainWall,curtainMaterial,replacedEnvelopes} from './building-surfaces.mjs';
 import {createFacadeMaterial} from './facade-material.mjs';
@@ -16,6 +17,7 @@ export function buildMapCity(scene,data,textures,helpers){
   const batches=new Map(),facadeBatches=new Map(),facadeUniforms=[],facadeLODs=[];
   let recessedWindows=0,detailedFrontages=0,glassBuildings=0,recessedGlassPanes=0,mappedMaterials=0,partEnvelopes=0,mappedWallColours=0,mappedRoofColours=0;
   let buildingCount=0,wallCount=0,roadCount=0,treeCount=0,recordedHeights=0;
+  const roofShapes={};let mappedRoofs=0,roofGables=0,supportedFixtures=0;
   const material=(color,options={})=>new THREE.MeshStandardMaterial({color,roughness:.92,side:THREE.DoubleSide,...options});
   const surface=(name,color,size)=>{
     const tex=textures[name];
@@ -32,6 +34,8 @@ export function buildMapCity(scene,data,textures,helpers){
   const masonry=surface('brick','#c9b79c',4),terracotta=material('#99634b');
   const roof=colourRoofSurface(surface('asphalt','#ffffff',7),.10982);
   const slates=colourRoofSurface(surface('roof','#ffffff',3),.25646);
+  const gableBrick=colourRoofSurface(surface('brick','#ffffff',3),.1117787);
+  const gableStone=colourRoofSurface(surface('plaster','#ffffff',3),.2585658);
   const facades=[makeFacade(textures.facade,facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,facadeAtlases.brick),makeFacade(textures.facade,facadeAtlases.stone),makeFacade(textures.brickFacade||textures.facade,facadeAtlases.brick)];
   const glazing=curtainMaterial();facadeUniforms.push(glazing.userData.night);
   function makeFacade(map,atlas){const m=createFacadeMaterial(map,atlas);facadeUniforms.push(m.userData.night);return m;}
@@ -158,11 +162,12 @@ export function buildMapCity(scene,data,textures,helpers){
     const hasHeight=Number.isFinite(parseFloat(t.height))||Number.isFinite(parseFloat(t['building:levels']));
     if(hasHeight)recordedHeights++;
     const levels=numeric(t['building:levels'],['garage','garages','shed','greenhouse'].includes(t.building)?1:area<85?3:area>1500?6:4);
-    const min=numeric(t.min_height,0);
-    const height=THREE.MathUtils.clamp(numeric(t.height,levels*3.55),2.5,190);
+    const min=numeric(t.min_height,numeric(t['building:min_level'],0)*3.55);
+    const height=THREE.MathUtils.clamp(roofBuildingHeight(t,levels),2.5,190);
     if(height<=min+.5)continue;
-    const pitched=building.roofRect&&building.p.length===1&&building.p[0].length===1&&height>9&&(['gabled','hipped','mansard','pyramidal'].includes(t['roof:shape'])||(!t['roof:shape']&&area<900&&height<28&&h>.3));
-    const pitch=pitched?Math.min(numeric(t['roof:height'],3.2),height*.3):0;
+    const roofPlan=planRoof(building,height,min,h),pitched=!!roofPlan;
+    const pitch=roofPlan?.rise||0;
+    if(roofPlan){roofShapes[roofPlan.shape]=(roofShapes[roofPlan.shape]||0)+1;if(!roofPlan.inferred)mappedRoofs++;}
     const mappedLevels=numeric(t['building:levels'],0);
     const type=mappedSurface(t,t.name==='County Hall'?0:Math.floor(h*facades.length));
     if(t['building:material'])mappedMaterials++;if(type==='glass')glassBuildings++;
@@ -175,7 +180,7 @@ export function buildMapCity(scene,data,textures,helpers){
     const floors=Math.max(1,Math.round(mappedLevels?mappedLevels-numeric(t['building:min_level'],min/3.55):((height-pitch-min)/3.55)));
     for(const polygon of building.p){
       const rings=polygon.map((r,i)=>cleaned(r,i>0));
-      for(const ring of rings){
+      if(y1>y0+.01)for(const ring of rings){
         if(ring.length<3)continue;
         for(let i=0;i<ring.length;i++){
           const a=ring[i],c=ring[(i+1)%ring.length],len=Math.hypot(c[0]-a[0],c[1]-a[1]);
@@ -203,29 +208,30 @@ export function buildMapCity(scene,data,textures,helpers){
         }
       }
       if(type==='glass'&&min>0)horizontal([polygon],y0,roof,colours.roof);
-      if(pitched){
-        const rect=building.roofRect,center=rect.reduce((c,p)=>[c[0]+p[0]/4,c[1]+p[1]/4],[0,0]);
-        const e0=[rect[1][0]-rect[0][0],rect[1][1]-rect[0][1]],e1=[rect[2][0]-rect[1][0],rect[2][1]-rect[1][1]],l0=Math.hypot(...e0),l1=Math.hypot(...e1);
-        const long=Math.max(l0,l1),short=Math.min(l0,l1),axis=l0>=l1?e0:e1,u=axis.map(v=>v/long),v=[-u[1],u[0]];
-        const pos=(du,dv,y)=>[center[0]+u[0]*du+v[0]*dv,y,center[1]+u[1]*du+v[1]*dv];
-        const a=pos(-long/2,-short/2,y1),c=pos(long/2,-short/2,y1),d=pos(long/2,short/2,y1),e=pos(-long/2,short/2,y1);
-        const r0=pos(-Math.max(0,long/2-short*.55),0,y1+pitch),r1=pos(Math.max(0,long/2-short*.55),0,y1+pitch),rb=batch(slates,cx,cz);
-        const face=points=>{for(let i=1;i<points.length-1;i++)triangle(rb,[points[0],points[i],points[i+1]],[points[0],points[i],points[i+1]].map(p=>[p[0]/3,p[2]/3]),colours.roof);};
-        face([a,c,r1,r0]);face([c,d,r1]);face([d,e,r0,r1]);face([e,a,r0]);
-      }else horizontal([polygon],y1+.03,roof,colours.roof);
+      if(roofPlan){
+        const rb=batch(t['roof:material']==='glass'?glazing:slates,cx,cz),gb=batch(type==='glass'?glazing:type==='brick'?gableBrick:gableStone,cx,cz);
+        const emitted=emitRoof(roofPlan,polygon,{roof:(p,uv)=>triangle(rb,p,uv,colours.roof),wall:(p,uv)=>triangle(gb,p,uv,colours.wall)});roofGables+=emitted.gables;
+      }else horizontal([polygon],y1+.03,t['roof:material']==='glass'?glazing:roof,colours.roof);
     }
-    // Individually varied rooftop plant and chimney stacks make the skyline less uniform.
-    if(pitched&&Math.hypot(cx,cz)<1300){
-      box(cx,5+height+.9,cz,.85,1.8,1.5,masonry);
-      box(cx,5+height+1.85,cz,1,.15,1.65,mats.weathered);
-      for(const dz of [-.4,.4])cyl(cx,5+height+2.2,cz+dz,.17,.65,terracotta);
+    // Estimated fixtures sit on valid roof area rather than the polygon centroid.
+    if(pitched&&type!=='glass'&&height<45&&!['pyramidal','round','skillion','butterfly'].includes(roofPlan.shape)&&Math.hypot(cx,cz)<1300){
+      const support=roofAttachment(building.p[0],[cx,cz],1.05);
+      if(support){
+        const [x,z]=support,range=roofSurfaceRange(roofPlan,[[-.425,-.75],[.425,-.75],[.425,.75],[-.425,.75]].map(([dx,dz])=>[x+dx,z+dz]));
+        const bottom=range[0]-.2,top=range[1]+1.7;
+        box(x,(bottom+top)/2,z,.85,top-bottom,1.5,masonry);box(x,top+.075,z,1,.15,1.65,mats.weathered);
+        for(const dz of [-.4,.4])cyl(x,top+.4,z+dz,.17,.65,terracotta);supportedFixtures++;
+      }
     }
     if(!pitched&&area>350&&Math.hypot(cx,cz)<1200){
-      const n=Math.min(5,Math.floor(area/500)+1);
+      const n=Math.min(5,Math.floor(area/500)+1),used=[];
       for(let i=0;i<n;i++){
-        const x=cx+(hash(id+i*3)-.5)*5,z=cz+(hash(id+i*3+1)-.5)*5;
+        const desired=[cx+(hash(id+i*3)-.5)*5,cz+(hash(id+i*3+1)-.5)*5];
+        const support=building.p.map(p=>roofAttachment(p,desired,h>.4?2.6:1.05)).find(Boolean);
+        if(!support||used.some(p=>Math.hypot(p[0]-support[0],p[1]-support[1])<5.2))continue;
+        used.push(support);const [x,z]=support;
         if(h>.4){box(x,y1+1.05,z,2+hash(id+i)*2,2,3,mats.roof);box(x,y1+2.1,z,2.2,.12,3.2,mats.weathered);}
-        else {box(x,y1+1.2,z,.9,2.4,1.7,masonry);}
+        else box(x,y1+1.2,z,.9,2.4,1.7,masonry);supportedFixtures++;
       }
     }
     buildingCount++;
@@ -264,5 +270,5 @@ export function buildMapCity(scene,data,textures,helpers){
     near.position.set(-b.x,-20,-b.z);far.position.copy(near.position);
     lod.addLevel(near,0);lod.addLevel(far,620,.12);scene.add(lod);facadeLODs.push(lod);
   }
-  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,kerbs,glassBuildings,recessedGlassPanes,mappedMaterials,partEnvelopes,mappedWallColours,mappedRoofColours,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
+  return {buildings:buildingCount,recordedHeights,walls:wallCount,roads:roadCount,trees:treeCount,source:data.source,kerbs,glassBuildings,recessedGlassPanes,mappedMaterials,partEnvelopes,mappedWallColours,mappedRoofColours,roofShapes,mappedRoofs,roofGables,supportedFixtures,majorRoads,nightUniforms:facadeUniforms,recessedWindows,detailedFrontages,facadeLODs};
 }

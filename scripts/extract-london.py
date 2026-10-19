@@ -9,7 +9,7 @@ SX=111320*math.cos(math.radians(ORIGIN_LAT));SZ=111320
 
 def project(lon,lat):return [round((lon-ORIGIN_LON)*SX-121,2),round(-(lat-ORIGIN_LAT)*SZ-51,2)]
 def inside(lon,lat):return WEST<lon<EAST and SOUTH<lat<NORTH
-KEEP={'name','building','building:part','height','min_height','building:levels','roof:height','roof:shape','roof:material','building:material','building:colour','roof:colour','amenity','historic','leisure','landuse','natural','water','waterway','highway','width','lanes','surface','bridge','tunnel','layer','oneway','ref'}
+KEEP={'name','building','building:part','height','min_height','building:levels','roof:height','roof:direction','roof:orientation','roof:angle','roof:levels','building:min_level','roof:shape','roof:material','building:material','building:colour','roof:colour','amenity','historic','leisure','landuse','natural','water','waterway','highway','width','lanes','surface','bridge','tunnel','layer','oneway','ref'}
 def tags(o):return {t.k:t.v for t in o.tags if t.k in KEEP}
 class London(osmium.SimpleHandler):
  def __init__(self):

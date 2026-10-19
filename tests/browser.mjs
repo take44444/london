@@ -45,6 +45,9 @@ try {
     assert.ok((await state()).map.materials.partEnvelopes>=2,'Complete building parts replace overlapping envelopes');
     assert.ok((await state()).map.materials.mappedWallColours>2000,'Mapped wall colours reach the rendered city');
     assert.ok((await state()).map.materials.mappedRoofColours>2000,'Roofs use their mapped colours independently');
+    assert.ok((await state()).map.roofs.mapped>300,'The rendered city includes mapped roof profiles');
+    assert.ok((await state()).map.roofs.shapes.gabled>150&&(await state()).map.roofs.shapes.skillion>50,'Gabled and skillion roofs retain distinct forms');
+    assert.ok((await state()).map.roofs.gables>1000,'Roof ends close above the facade walls');
     assert.equal((await state()).map.source,'OpenStreetMap contributors');
     const facades=(await state()).map.facades;
     assert.ok(facades.recessedWindows>10000&&facades.recessedWindows<100000,'Riverfront windows have a bounded geometry budget');
